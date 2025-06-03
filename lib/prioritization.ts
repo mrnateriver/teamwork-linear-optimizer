@@ -24,13 +24,22 @@ function topologicalSort(projects: OptimizationProject[]): OptimizationProject[]
   // Build adjacency list and indegree count for each project
   const adjList: { [id: string]: string[] } = {}
   const indegree: { [id: string]: number } = {}
+  const projectIds = new Set(projects.map((p) => p.id))
+
   for (const proj of projects) {
-    indegree[proj.id] = proj.dependencies.length
+    // Filter out invalid dependencies (projects that don't exist)
+    const validDependencies = proj.dependencies.filter((depId) => projectIds.has(depId))
+    indegree[proj.id] = validDependencies.length
     adjList[proj.id] = [] // initialize adjacency list
+
+    // Update the project's dependencies to only include valid ones
+    proj.dependencies = validDependencies
   }
+
   for (const proj of projects) {
     for (const dep of proj.dependencies) {
       // dep -> proj (i.e., proj is a neighbor of dep in the DAG)
+      // We know dep exists because we filtered invalid dependencies above
       adjList[dep].push(proj.id)
     }
   }
@@ -150,10 +159,15 @@ export function prioritizeProjects(
     teamIdToName[team.id] = team.name
   })
 
+  // Create a set of valid project IDs for filtering dependencies
+  const validProjectIds = new Set(validProjects.map((p) => p.id))
+
   // Transform projects to the optimization format
   const optimizationProjects: OptimizationProject[] = validProjects.map((project) => {
-    // Get dependencies for this project
-    const projectDependencies = dependencies.filter((dep) => dep.targetId === project.id).map((dep) => dep.sourceId)
+    // Get dependencies for this project, filtering out invalid ones
+    const projectDependencies = dependencies
+      .filter((dep) => dep.targetId === project.id && validProjectIds.has(dep.sourceId))
+      .map((dep) => dep.sourceId)
 
     return {
       id: project.id,
