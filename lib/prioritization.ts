@@ -15,6 +15,10 @@ export function prioritizeProjects(allProjects: Project[], teams: Team[]): Prior
 
   // Sort projects by value/effort ratio (descending)
   const sortedProjects = [...allProjects].sort((a, b) => {
+    // Handle null/undefined cases
+    if (a.effort === null || a.value === null) return 1 // a comes last
+    if (b.effort === null || b.value === null) return -1 // b comes last
+
     // Handle zero effort cases
     if (a.effort === 0 && b.effort === 0) return b.value - a.value
     if (a.effort === 0) return -1 // a comes first (infinite value/effort)
@@ -46,7 +50,7 @@ export function prioritizeProjects(allProjects: Project[], teams: Team[]): Prior
     const teamSummary = teamSummaries[teamId] || { allocated: 0, value: 0 }
 
     // Skip projects with no effort or value
-    if (project.effort <= 0 || project.value <= 0) {
+    if (project.effort === null || project.effort <= 0 || project.value === null || project.value <= 0) {
       unselectedProjects.push(project)
       continue
     }

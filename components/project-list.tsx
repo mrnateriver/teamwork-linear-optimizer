@@ -19,6 +19,7 @@ export function ProjectList({ teamId }: ProjectListProps) {
   const [titleError, setTitleError] = useState("")
 
   const teamProjects = Object.values(projects).filter((project) => project.teamId === teamId)
+  const hasLinkedCopies = teamProjects.some((project) => project.isLinkedCopy)
 
   const handleAddProject = () => {
     if (!newProjectTitle.trim()) {
@@ -42,6 +43,7 @@ export function ProjectList({ teamId }: ProjectListProps) {
           <TableHeader>
             <TableRow>
               <TableHead className="w-[300px]">Project Title</TableHead>
+              {hasLinkedCopies && <TableHead>From Team</TableHead>}
               <TableHead>
                 <div className="flex items-center gap-1">
                   Effort
@@ -79,12 +81,14 @@ export function ProjectList({ teamId }: ProjectListProps) {
           <TableBody>
             {teamProjects.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-6 text-muted-foreground">
+                <TableCell colSpan={hasLinkedCopies ? 6 : 5} className="text-center py-6 text-muted-foreground">
                   No projects yet. Add your first project below.
                 </TableCell>
               </TableRow>
             ) : (
-              teamProjects.map((project) => <ProjectItem key={project.id} project={project} />)
+              teamProjects.map((project) => (
+                <ProjectItem key={project.id} project={project} showFromTeam={hasLinkedCopies} />
+              ))
             )}
             <TableRow>
               <TableCell>
@@ -103,6 +107,7 @@ export function ProjectList({ teamId }: ProjectListProps) {
                   {titleError && <div className="text-red-500 text-sm">{titleError}</div>}
                 </div>
               </TableCell>
+              {hasLinkedCopies && <TableCell></TableCell>}
               <TableCell colSpan={3}></TableCell>
               <TableCell>
                 <Button onClick={handleAddProject} className="w-full flex items-center gap-1">

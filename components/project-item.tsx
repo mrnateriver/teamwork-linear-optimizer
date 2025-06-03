@@ -23,9 +23,10 @@ import { ArrowDown, ArrowUp, Network, Trash, Lock } from "lucide-react"
 
 interface ProjectItemProps {
   project: Project
+  showFromTeam?: boolean
 }
 
-export function ProjectItem({ project }: ProjectItemProps) {
+export function ProjectItem({ project, showFromTeam = false }: ProjectItemProps) {
   const {
     updateProject,
     deleteProject,
@@ -33,6 +34,8 @@ export function ProjectItem({ project }: ProjectItemProps) {
     selectedProjectId,
     getProjectDependencies,
     getProjectDependents,
+    projects,
+    teams,
   } = useAppStore()
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -41,19 +44,52 @@ export function ProjectItem({ project }: ProjectItemProps) {
   const dependents = getProjectDependents(project.id)
   const hasDependencies = dependencies.length > 0
   const hasDependents = dependents.length > 0
-  const needsInput = project.effort === 0 || project.value === 0
-  const isReadonly = project.isLinkedCopy
-  const canManageDependencies = project.effort > 0 && project.value > 0
+  const isLinkedCopy = project.isLinkedCopy
+
+  // Get origin team name for linked copies
+  let originTeamName = ""
+  if (isLinkedCopy && project.sourceProjectId) {
+    const sourceProject = projects[project.sourceProjectId]
+    if (sourceProject) {
+      const originTeam = teams.find((team) => team.id === sourceProject.teamId)
+      originTeamName = originTeam?.name || "Unknown team"
+    }
+  }
+
+  // Check if project needs input
+  const needsInput = project.effort === null || project.value === null
+  const linkedCopyNeedsInput = isLinkedCopy && project.effort === null
+
+  // Project can manage dependencies if effort and value are set and greater than 0
+  const canManageDependencies =
+    project.effort !== null && project.value !== null && project.effort > 0 && project.value > 0
 
   const handleEffortChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (isReadonly) return
-    const value = Number.parseInt(e.target.value) || 0
+    // Handle empty input
+    const inputValue = e.target.value
+    if (inputValue === "") {
+      updateProject(project.id, { effort: null })
+      return
+    }
+
+    // Handle numeric input
+    const value = Number.parseInt(inputValue) || 0
     updateProject(project.id, { effort: Math.max(0, value) })
   }
 
   const handleValueChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (isReadonly) return
-    const value = Number.parseInt(e.target.value) || 0
+    // Value is readonly for linked copies
+    if (isLinkedCopy) return
+
+    // Handle empty input
+    const inputValue = e.target.value
+    if (inputValue === "") {
+      updateProject(project.id, { value: null })
+      return
+    }
+
+    // Handle numeric input
+    const value = Number.parseInt(inputValue) || 0
     updateProject(project.id, { value: Math.max(0, value) })
   }
 
@@ -70,39 +106,55 @@ export function ProjectItem({ project }: ProjectItemProps) {
         <TableCell className="font-medium">
           <div className="flex items-center gap-2">
             {project.title}
-            {isReadonly && (
+            {isLinkedCopy && (
               <Badge variant="secondary" className="flex items-center gap-1">
                 <Lock className="h-3 w-3" />
                 Linked Copy
               </Badge>
             )}
-            {needsInput && !isReadonly && (
+            {needsInput && !isLinkedCopy && (
               <Badge variant="outline" className="text-amber-500 border-amber-500">
                 Needs input
               </Badge>
             )}
+            {linkedCopyNeedsInput && (
+              <Badge variant="outline" className="text-amber-500 border-amber-500">
+                Requires input
+              </Badge>
+            )}
           </div>
         </TableCell>
+
+        {showFromTeam && (
+          <TableCell>
+            {isLinkedCopy && originTeamName ? (
+              <span className="text-sm text-muted-foreground">{originTeamName}</span>
+            ) : null}
+          </TableCell>
+        )}
+
         <TableCell>
           <Input
             type="number"
             min="0"
-            value={project.effort}
+            value={project.effort !== null ? project.effort : ""}
             onChange={handleEffortChange}
             onClick={(e) => e.stopPropagation()}
             className="w-20"
             disabled={false} // Effort can always be edited
+            placeholder="--"
           />
         </TableCell>
         <TableCell>
           <Input
             type="number"
             min="0"
-            value={project.value}
+            value={project.value !== null ? project.value : ""}
             onChange={handleValueChange}
             onClick={(e) => e.stopPropagation()}
             className="w-20"
-            disabled={isReadonly}
+            disabled={isLinkedCopy} // Value is readonly for linked copies
+            placeholder="--"
           />
         </TableCell>
         <TableCell>
@@ -132,7 +184,7 @@ export function ProjectItem({ project }: ProjectItemProps) {
               <Network className="h-4 w-4" />
               <span className="sr-only">View dependencies</span>
             </Button>
-            {!isReadonly && (
+            {!isLinkedCopy && (
               <Button
                 variant="ghost"
                 size="icon"

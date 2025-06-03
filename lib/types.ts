@@ -8,8 +8,8 @@ export interface Project {
   id: string
   teamId: string
   title: string
-  effort: number
-  value: number
+  effort: number | null
+  value: number | null
   sourceProjectId?: string // For linked copies, points to the original project
   isLinkedCopy?: boolean // True if this is a copy of another project
 }

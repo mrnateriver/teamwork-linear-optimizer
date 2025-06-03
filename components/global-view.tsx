@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Network } from "lucide-react"
+import { Download, Network } from "lucide-react"
 import { DependencyDrawer } from "@/components/dependency-drawer"
 
 export function GlobalView() {
@@ -21,6 +21,49 @@ export function GlobalView() {
 
   const handleViewDependencies = (project: Project) => {
     selectProject(project.id)
+  }
+
+  // Function to export prioritized projects to CSV
+  const exportToCSV = () => {
+    if (selectedProjects.length === 0) return
+
+    // Create CSV headers
+    const headers = ["Project", "Team", "Effort", "Value", "Value/Effort Ratio"]
+
+    // Create CSV rows
+    const rows = selectedProjects.map((project) => {
+      const team = teams.find((t) => t.id === project.teamId)?.name || "Unknown"
+      const effort = project.effort !== null ? project.effort : 0
+      const value = project.value !== null ? project.value : 0
+      const ratio = effort > 0 ? (value / effort).toFixed(2) : "∞"
+
+      return [
+        `"${project.title}"`, // Quote the title to handle commas in titles
+        `"${team}"`,
+        effort,
+        value,
+        ratio,
+      ].join(",")
+    })
+
+    // Combine headers and rows
+    const csvContent = [headers.join(","), ...rows].join("\n")
+
+    // Create a Blob with the CSV content
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+
+    // Create a download link
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.setAttribute("href", url)
+    link.setAttribute("download", "prioritized-projects.csv")
+    link.style.display = "none"
+
+    // Add to document, trigger download, and clean up
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
   }
 
   return (
@@ -53,13 +96,14 @@ export function GlobalView() {
                   ) : (
                     selectedProjects.map((project) => {
                       const team = teams.find((t) => t.id === project.teamId)
-                      const canManageDependencies = project.effort > 0 && project.value > 0
+                      const canManageDependencies =
+                        project.effort !== null && project.value !== null && project.effort > 0 && project.value > 0
                       return (
                         <TableRow key={project.id}>
                           <TableCell className="font-medium">{project.title}</TableCell>
                           <TableCell>{team?.name || "Unknown"}</TableCell>
-                          <TableCell>{project.effort}</TableCell>
-                          <TableCell>{project.value}</TableCell>
+                          <TableCell>{project.effort !== null ? project.effort : "--"}</TableCell>
+                          <TableCell>{project.value !== null ? project.value : "--"}</TableCell>
                           <TableCell>
                             <Button
                               variant="ghost"
@@ -79,6 +123,15 @@ export function GlobalView() {
               </Table>
             </div>
 
+            {selectedProjects.length > 0 && (
+              <div className="mt-4 flex justify-end">
+                <Button variant="outline" size="sm" onClick={exportToCSV} className="flex items-center gap-2">
+                  <Download className="h-4 w-4" />
+                  Export to CSV
+                </Button>
+              </div>
+            )}
+
             {selectedProjects.length > 0 && unselectedProjects.length > 0 && (
               <div className="relative my-8">
                 <Separator />
@@ -91,44 +144,48 @@ export function GlobalView() {
             )}
 
             {unselectedProjects.length > 0 && (
-              <div className="border rounded-md mt-4">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Project</TableHead>
-                      <TableHead>Team</TableHead>
-                      <TableHead>Effort</TableHead>
-                      <TableHead>Value</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody className="text-muted-foreground">
-                    {unselectedProjects.map((project) => {
-                      const team = teams.find((t) => t.id === project.teamId)
-                      const canManageDependencies = project.effort > 0 && project.value > 0
-                      return (
-                        <TableRow key={project.id}>
-                          <TableCell className="font-medium">{project.title}</TableCell>
-                          <TableCell>{team?.name || "Unknown"}</TableCell>
-                          <TableCell>{project.effort}</TableCell>
-                          <TableCell>{project.value}</TableCell>
-                          <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleViewDependencies(project)}
-                              disabled={!canManageDependencies}
-                            >
-                              <Network className="h-4 w-4" />
-                              <span className="sr-only">View dependencies</span>
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
+              <>
+                <h3 className="text-xl font-semibold mt-8 mb-4">Postponed Projects</h3>
+                <div className="border rounded-md">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Project</TableHead>
+                        <TableHead>Team</TableHead>
+                        <TableHead>Effort</TableHead>
+                        <TableHead>Value</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody className="text-muted-foreground">
+                      {unselectedProjects.map((project) => {
+                        const team = teams.find((t) => t.id === project.teamId)
+                        const canManageDependencies =
+                          project.effort !== null && project.value !== null && project.effort > 0 && project.value > 0
+                        return (
+                          <TableRow key={project.id}>
+                            <TableCell className="font-medium">{project.title}</TableCell>
+                            <TableCell>{team?.name || "Unknown"}</TableCell>
+                            <TableCell>{project.effort !== null ? project.effort : "--"}</TableCell>
+                            <TableCell>{project.value !== null ? project.value : "--"}</TableCell>
+                            <TableCell>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleViewDependencies(project)}
+                                disabled={!canManageDependencies}
+                              >
+                                <Network className="h-4 w-4" />
+                                <span className="sr-only">View dependencies</span>
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </>
             )}
           </div>
 

@@ -96,8 +96,8 @@ export const useAppStore = create<AppState>()(
           id,
           teamId,
           title,
-          effort: 0,
-          value: 0,
+          effort: null, // Start with empty effort
+          value: null, // Start with empty value
         }
 
         set((state) => ({
@@ -218,7 +218,7 @@ export const useAppStore = create<AppState>()(
           id: newId,
           teamId: targetTeamId,
           title: sourceProject.title, // Use original name without suffix
-          effort: 0, // Reset effort for the new team to estimate
+          effort: null, // Start with empty effort for the new team to estimate
           value: sourceProject.value, // Keep the same business value
           sourceProjectId: sourceId,
           isLinkedCopy: true,
