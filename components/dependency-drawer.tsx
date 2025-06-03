@@ -169,15 +169,17 @@ export function DependencyDrawer() {
   const [error, setError] = useState<string | null>(null)
 
   const selectedProject = selectedProjectId ? projects[selectedProjectId] : null
-  const otherTeams = teams.filter((team) => selectedProject && team.id !== selectedProject.teamId)
 
   // Get current dependencies to filter out already linked projects
   const currentDependencies = selectedProjectId ? getProjectDependencies(selectedProjectId) : []
   const dependentTeams = currentDependencies.map((depId) => projects[depId]?.teamId).filter(Boolean)
 
-  // Filter out projects that are already linked to the selected project
+  // Filter out projects that are already linked to the selected project or the selected project itself
   const selectedTeamProjects = Object.values(projects).filter(
-    (project) => project.teamId === selectedTeamId && !currentDependencies.includes(project.id),
+    (project) =>
+      project.teamId === selectedTeamId &&
+      !currentDependencies.includes(project.id) &&
+      project.id !== selectedProjectId,
   )
 
   // Determine if we're in readonly mode (when opened from Global View)
@@ -198,6 +200,12 @@ export function DependencyDrawer() {
     if (!selectedProjectId || !selectedTeamId || !selectedProject || isReadonly) return
 
     setError(null)
+
+    // If linking to the same team, we need to create a new project or link to existing
+    if (selectedTeamId === selectedProject.teamId) {
+      setError("Please use 'Link to existing project' or 'Create new project' for same-team dependencies")
+      return
+    }
 
     // Create a linked duplicate project in the target team
     const newProjectId = duplicateProjectAsLinked(selectedProjectId, selectedTeamId)
@@ -256,6 +264,7 @@ export function DependencyDrawer() {
 
   // Check if the selected team is already linked
   const isTeamAlreadyLinked = selectedTeamId && dependentTeams.includes(selectedTeamId)
+  const isSameTeam = selectedTeamId === selectedProject.teamId
 
   return (
     <Sheet open={!!selectedProjectId} onOpenChange={(open) => !open && selectProject(null)}>
@@ -263,7 +272,7 @@ export function DependencyDrawer() {
         <SheetHeader className="mb-4">
           <SheetTitle>Dependencies: {selectedProject.title}</SheetTitle>
           <SheetDescription>
-            {isReadonly ? "View project dependencies" : "Manage dependencies between projects across teams"}
+            {isReadonly ? "View project dependencies" : "Manage dependencies between projects"}
           </SheetDescription>
         </SheetHeader>
 
@@ -282,21 +291,24 @@ export function DependencyDrawer() {
         <div className="space-y-6">
           {!isReadonly && (
             <div>
-              <h3 className="text-lg font-semibold mb-3">Add Team Dependencies</h3>
+              <h3 className="text-lg font-semibold mb-3">Add Project Dependencies</h3>
               <p className="text-sm text-muted-foreground mb-4">
-                Select teams that this project depends on. By default, an identical project will be created in the
-                selected team.
+                Select a team to add dependencies from. You can create dependencies within the same team or across
+                different teams.
               </p>
 
               <div className="space-y-4">
                 <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select a team to add dependency" />
+                    <SelectValue placeholder="Select a team" />
                   </SelectTrigger>
                   <SelectContent>
-                    {otherTeams.map((team) => (
+                    {teams.map((team) => (
                       <SelectItem key={team.id} value={team.id}>
                         {team.name}
+                        {team.id === selectedProject.teamId && (
+                          <span className="ml-2 text-muted-foreground">(Current)</span>
+                        )}
                         {dependentTeams.includes(team.id) && (
                           <Badge variant="outline" className="ml-2">
                             Already linked
@@ -309,14 +321,16 @@ export function DependencyDrawer() {
 
                 {selectedTeamId && (
                   <div className="space-y-3">
-                    <Button
-                      onClick={handleLinkToTeam}
-                      className="w-full flex items-center gap-2"
-                      disabled={isTeamAlreadyLinked}
-                    >
-                      <ArrowRight className="h-4 w-4" />
-                      Link to {teams.find((t) => t.id === selectedTeamId)?.name}
-                    </Button>
+                    {!isSameTeam && (
+                      <Button
+                        onClick={handleLinkToTeam}
+                        className="w-full flex items-center gap-2"
+                        disabled={isTeamAlreadyLinked}
+                      >
+                        <ArrowRight className="h-4 w-4" />
+                        Link to {teams.find((t) => t.id === selectedTeamId)?.name}
+                      </Button>
+                    )}
 
                     <div className="flex gap-2">
                       <Button
