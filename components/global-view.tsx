@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import { useAppStore } from "@/lib/store"
 import { prioritizeProjects } from "@/lib/prioritization"
 import type { Project } from "@/lib/types"
@@ -11,14 +11,24 @@ import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Download, Network, Circle } from "lucide-react"
 import { DependencyDrawer } from "@/components/dependency-drawer"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 export function GlobalView() {
-  const { teams, projects, dependencies, selectProject } = useAppStore()
+  const { teams, projects, selectProject } = useAppStore()
 
-  // Calculate prioritized projects using the optimized algorithm
+  const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>("all")
+
+  // Calculate prioritized projects with team filter
   const { selectedProjects, unselectedProjects, teamSummaries } = useMemo(() => {
-    return prioritizeProjects(Object.values(projects), teams, dependencies)
-  }, [projects, teams, dependencies])
+    const filteredProjects =
+      selectedTeamFilter === "all"
+        ? Object.values(projects)
+        : Object.values(projects).filter((project) => project.teamId === selectedTeamFilter)
+
+    const filteredTeams = selectedTeamFilter === "all" ? teams : teams.filter((team) => team.id === selectedTeamFilter)
+
+    return prioritizeProjects(filteredProjects, filteredTeams)
+  }, [projects, teams, selectedTeamFilter])
 
   // Calculate overall capacity utilization
   const overallUtilization = useMemo(() => {
@@ -87,10 +97,32 @@ export function GlobalView() {
     URL.revokeObjectURL(url)
   }
 
+  const displayTeams = selectedTeamFilter === "all" ? teams : teams.filter((team) => team.id === selectedTeamFilter)
+
   return (
     <div className="space-y-8">
       <div>
         <h2 className="text-3xl font-bold mb-6">Global Prioritization</h2>
+
+        {/* Team Filter Section */}
+        <div className="flex items-center gap-4 mb-6">
+          <label htmlFor="team-filter" className="text-sm font-medium">
+            Filter by Team:
+          </label>
+          <Select value={selectedTeamFilter} onValueChange={setSelectedTeamFilter}>
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="All teams" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Teams</SelectItem>
+              {teams.map((team) => (
+                <SelectItem key={team.id} value={team.id}>
+                  {team.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
         <div className="space-y-8">
           {/* Team Summary Section */}
@@ -116,14 +148,14 @@ export function GlobalView() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {teams.length === 0 ? (
+                  {displayTeams.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={5} className="text-center py-6 text-muted-foreground">
                         No teams created yet.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    teams.map((team) => {
+                    displayTeams.map((team) => {
                       const summary = teamSummaries[team.id] || {
                         allocated: 0,
                         value: 0,
@@ -218,7 +250,7 @@ export function GlobalView() {
                 <Separator />
                 <div className="absolute inset-0 flex items-center justify-center">
                   <Badge variant="outline" className="bg-background px-2">
-                    Optimal Selection Reached
+                    Capacity Limit Reached
                   </Badge>
                 </div>
               </div>
