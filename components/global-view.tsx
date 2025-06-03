@@ -13,12 +13,12 @@ import { Download, Network, Circle } from "lucide-react"
 import { DependencyDrawer } from "@/components/dependency-drawer"
 
 export function GlobalView() {
-  const { teams, projects, selectProject } = useAppStore()
+  const { teams, projects, dependencies, selectProject } = useAppStore()
 
-  // Calculate prioritized projects
+  // Calculate prioritized projects using the optimized algorithm
   const { selectedProjects, unselectedProjects, teamSummaries } = useMemo(() => {
-    return prioritizeProjects(Object.values(projects), teams)
-  }, [projects, teams])
+    return prioritizeProjects(Object.values(projects), teams, dependencies)
+  }, [projects, teams, dependencies])
 
   // Calculate overall capacity utilization
   const overallUtilization = useMemo(() => {
@@ -218,7 +218,7 @@ export function GlobalView() {
                 <Separator />
                 <div className="absolute inset-0 flex items-center justify-center">
                   <Badge variant="outline" className="bg-background px-2">
-                    Capacity Limit Reached
+                    Optimal Selection Reached
                   </Badge>
                 </div>
               </div>

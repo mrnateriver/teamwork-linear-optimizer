@@ -193,7 +193,7 @@ export const useAppStore = create<AppState>()(
         const newProject: Project = {
           id: newId,
           teamId: targetTeamId,
-          title: `${sourceProject.title} (Copy)`,
+          title: sourceProject.title,
           effort: sourceProject.effort,
           value: sourceProject.value,
         }
