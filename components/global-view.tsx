@@ -1,134 +1,147 @@
-"use client"
+"use client";
 
-import { useMemo, useState, useEffect } from "react"
-import { useAppStore } from "@/lib/store"
-import { prioritizeProjects } from "@/lib/prioritization"
-import type { Project, Team, Dependency } from "@/lib/types"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Progress } from "@/components/ui/progress"
-import { Separator } from "@/components/ui/separator"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Download, Network, Circle, ChevronsUpDown, Check } from "lucide-react" // Added ChevronsUpDown, Check
-import { DependencyDrawer } from "@/components/dependency-drawer"
-// Removed Select imports, added Popover and Command imports
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
-import { cn } from "@/lib/utils"
-
-const DEBOUNCE_DELAY = 500
+import { DependencyDrawer } from "@/components/dependency-drawer";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { Separator } from "@/components/ui/separator";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { useAppStore } from "@/lib/store";
+import type { Project } from "@/lib/types";
+import { Check, ChevronsUpDown, Circle, Download, Network } from "lucide-react"; // Added ChevronsUpDown, Check
+import { useMemo, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 interface FilterOption {
-  value: string
-  label: string
-  keywords?: string[]
+  value: string;
+  label: string;
+  keywords?: string[];
 }
 
 export function GlobalView() {
-  const storeProjects = useAppStore((state) => state.projects)
-  const storeTeams = useAppStore((state) => state.teams)
-  const getDependencies = useAppStore((state) => state.getDependencies)
-  const selectProject = useAppStore((state) => state.selectProject)
+  const storeTeams = useAppStore((state) => state.teams);
+  const selectProject = useAppStore((state) => state.selectProject);
+  const output = useAppStore(
+    useShallow((state) => ({
+      selectedProjects: state.selectedProjects,
+      unselectedProjects: state.unselectedProjects,
+      teamSummaries: state.teamSummaries,
+    })),
+  );
 
-  const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>("all")
-  const [filterComboboxOpen, setFilterComboboxOpen] = useState(false)
-
-  const [debouncedInputs, setDebouncedInputs] = useState<{
-    projects: Record<string, Project>
-    teams: Team[]
-    dependencies: Dependency[]
-  }>({
-    projects: storeProjects,
-    teams: storeTeams,
-    dependencies: getDependencies(),
-  })
+  const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>("all");
+  const [filterComboboxOpen, setFilterComboboxOpen] = useState(false);
 
   // Key for the filter Command component to ensure re-initialization on data change
   const filterCommandKey = useMemo(() => {
-    return storeTeams.map((team) => team.id).join(",") + `_len:${storeTeams.length}`
-  }, [storeTeams])
+    return (
+      storeTeams.map((team) => team.id).join(",") + `_len:${storeTeams.length}`
+    );
+  }, [storeTeams]);
 
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedInputs({
-        projects: storeProjects,
-        teams: storeTeams,
-        dependencies: getDependencies(),
-      })
-    }, DEBOUNCE_DELAY)
+  const { selectedProjects, unselectedProjects, teamSummaries } =
+    useMemo(() => {
+      const filterProjects =
+        selectedTeamFilter === "all"
+          ? () => true
+          : (p: Project) => p.teamId === selectedTeamFilter;
 
-    return () => {
-      clearTimeout(handler)
-    }
-  }, [storeProjects, storeTeams, getDependencies])
-
-  const { selectedProjects, unselectedProjects, teamSummaries } = useMemo(() => {
-    const allProjectsArray = Object.values(debouncedInputs.projects)
-    const filteredProjectsForPrioritization =
-      selectedTeamFilter === "all"
-        ? allProjectsArray
-        : allProjectsArray.filter((project) => project.teamId === selectedTeamFilter)
-
-    const teamsForPrioritization =
-      selectedTeamFilter === "all"
-        ? debouncedInputs.teams
-        : debouncedInputs.teams.filter((team) => team.id === selectedTeamFilter)
-
-    return prioritizeProjects(filteredProjectsForPrioritization, teamsForPrioritization, debouncedInputs.dependencies)
-  }, [debouncedInputs, selectedTeamFilter])
+      return {
+        selectedProjects: output.selectedProjects.filter(filterProjects),
+        unselectedProjects: output.unselectedProjects.filter(filterProjects),
+        teamSummaries: output.teamSummaries,
+      };
+    }, [selectedTeamFilter]);
 
   const overallUtilization = useMemo(() => {
-    const totalCapacity = debouncedInputs.teams.reduce((sum, team) => sum + team.capacity, 0)
-    const totalAllocated = debouncedInputs.teams.reduce((sum, team) => {
-      const summary = teamSummaries[team.id] || { allocated: 0, value: 0 }
-      return sum + summary.allocated
-    }, 0)
-    return totalCapacity > 0 ? (totalAllocated / totalCapacity) * 100 : 0
-  }, [debouncedInputs.teams, teamSummaries])
+    const totalCapacity = storeTeams.reduce(
+      (sum, team) => sum + team.capacity,
+      0,
+    );
+    const totalAllocated = storeTeams.reduce((sum, team) => {
+      const summary = teamSummaries[team.id] || { allocated: 0, value: 0 };
+      return sum + summary.allocated;
+    }, 0);
+    return totalCapacity > 0 ? (totalAllocated / totalCapacity) * 100 : 0;
+  }, [storeTeams, teamSummaries]);
 
   const handleViewDependencies = (project: Project) => {
-    selectProject(project.id)
-  }
+    selectProject(project.id);
+  };
 
   const getUtilizationColor = (allocated: number, capacity: number) => {
-    if (capacity === 0) return "text-gray-400"
-    const utilization = (allocated / capacity) * 100
-    if (utilization < 50) return "text-green-500"
-    if (utilization < 80) return "text-yellow-500"
-    return "text-red-500"
-  }
+    if (capacity === 0) return "text-gray-400";
+    const utilization = (allocated / capacity) * 100;
+    if (utilization < 50) return "text-green-500";
+    if (utilization < 80) return "text-yellow-500";
+    return "text-red-500";
+  };
 
   const exportToCSV = () => {
-    if (selectedProjects.length === 0) return
-    const headers = ["Project", "Team", "Effort", "Value", "Value/Effort Ratio"]
+    if (selectedProjects.length === 0) return;
+    const headers = [
+      "Project",
+      "Team",
+      "Effort",
+      "Value",
+      "Value/Effort Ratio",
+    ];
     const rows = selectedProjects.map((project) => {
-      const team = debouncedInputs.teams.find((t) => t.id === project.teamId)?.name || "Unknown"
-      const effort = project.effort !== null ? project.effort : 0
-      const value = project.value !== null ? project.value : 0
-      const ratio = effort > 0 ? (value / effort).toFixed(2) : "∞"
-      return [`"${project.title}"`, `"${team}"`, effort, value, ratio].join(",")
-    })
-    const csvContent = [headers.join(","), ...rows].join("\n")
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement("a")
-    link.setAttribute("href", url)
-    link.setAttribute("download", "prioritized-projects.csv")
-    link.style.display = "none"
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
-  }
+      const team =
+        storeTeams.find((t) => t.id === project.teamId)?.name || "Unknown";
+      const effort = project.effort !== null ? project.effort : 0;
+      const value = project.value !== null ? project.value : 0;
+      const ratio = effort > 0 ? (value / effort).toFixed(2) : "∞";
+      return [`"${project.title}"`, `"${team}"`, effort, value, ratio].join(
+        ",",
+      );
+    });
+    const csvContent = [headers.join(","), ...rows].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", "prioritized-projects.csv");
+    link.style.display = "none";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   const displayTeams =
     selectedTeamFilter === "all"
-      ? debouncedInputs.teams
-      : debouncedInputs.teams.filter((team) => team.id === selectedTeamFilter)
+      ? storeTeams
+      : storeTeams.filter((team) => team.id === selectedTeamFilter);
 
   const teamFilterOptions: FilterOption[] = useMemo(
     () => [
-      { value: "all", label: "All Teams", keywords: ["all", "everyone", "overall"] },
+      {
+        value: "all",
+        label: "All Teams",
+        keywords: ["all", "everyone", "overall"],
+      },
       ...storeTeams.map((team) => ({
         value: team.id,
         label: team.name,
@@ -136,10 +149,11 @@ export function GlobalView() {
       })),
     ],
     [storeTeams],
-  )
+  );
 
   const selectedFilterDisplayLabel =
-    teamFilterOptions.find((option) => option.value === selectedTeamFilter)?.label || "Filter by team..."
+    teamFilterOptions.find((option) => option.value === selectedTeamFilter)
+      ?.label || "Filter by team...";
 
   return (
     <div className="space-y-8">
@@ -147,10 +161,16 @@ export function GlobalView() {
         <h2 className="text-3xl font-bold mb-6">Global Prioritization</h2>
 
         <div className="flex items-center gap-4 mb-6">
-          <label htmlFor="team-filter-combobox" className="text-sm font-medium shrink-0">
+          <label
+            htmlFor="team-filter-combobox"
+            className="text-sm font-medium shrink-0"
+          >
             Filter by Team:
           </label>
-          <Popover open={filterComboboxOpen} onOpenChange={setFilterComboboxOpen}>
+          <Popover
+            open={filterComboboxOpen}
+            onOpenChange={setFilterComboboxOpen}
+          >
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
@@ -177,14 +197,16 @@ export function GlobalView() {
                         value={option.value} // Actual value for onSelect
                         keywords={option.keywords} // Keywords for searching
                         onSelect={(currentValue) => {
-                          setSelectedTeamFilter(currentValue)
-                          setFilterComboboxOpen(false)
+                          setSelectedTeamFilter(currentValue);
+                          setFilterComboboxOpen(false);
                         }}
                       >
                         <Check
                           className={cn(
                             "mr-2 h-4 w-4",
-                            selectedTeamFilter === option.value ? "opacity-100" : "opacity-0",
+                            selectedTeamFilter === option.value
+                              ? "opacity-100"
+                              : "opacity-0",
                           )}
                         />
                         {option.label}
@@ -202,9 +224,13 @@ export function GlobalView() {
             <div className="flex items-center gap-4 mb-4">
               <h3 className="text-xl font-semibold">Team Summary</h3>
               <div className="flex items-center gap-2 flex-1 max-w-md">
-                <span className="text-sm text-muted-foreground whitespace-nowrap">Overall Utilization:</span>
+                <span className="text-sm text-muted-foreground whitespace-nowrap">
+                  Overall Utilization:
+                </span>
                 <Progress value={overallUtilization} className="flex-1" />
-                <span className="text-sm font-medium min-w-[3rem]">{overallUtilization.toFixed(0)}%</span>
+                <span className="text-sm font-medium min-w-[3rem]">
+                  {overallUtilization.toFixed(0)}%
+                </span>
               </div>
             </div>
 
@@ -222,13 +248,20 @@ export function GlobalView() {
                 <TableBody>
                   {displayTeams.length === 0 && selectedTeamFilter === "all" ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-6 text-muted-foreground">
+                      <TableCell
+                        colSpan={5}
+                        className="text-center py-6 text-muted-foreground"
+                      >
                         No teams created yet.
                       </TableCell>
                     </TableRow>
-                  ) : displayTeams.length === 0 && selectedTeamFilter !== "all" ? (
+                  ) : displayTeams.length === 0 &&
+                    selectedTeamFilter !== "all" ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-6 text-muted-foreground">
+                      <TableCell
+                        colSpan={5}
+                        className="text-center py-6 text-muted-foreground"
+                      >
                         Team not found or has no data.
                       </TableCell>
                     </TableRow>
@@ -237,15 +270,20 @@ export function GlobalView() {
                       const summary = teamSummaries[team.id] || {
                         allocated: 0,
                         value: 0,
-                      }
-                      const remaining = team.capacity - summary.allocated
-                      const utilizationColor = getUtilizationColor(summary.allocated, team.capacity)
+                      };
+                      const remaining = team.capacity - summary.allocated;
+                      const utilizationColor = getUtilizationColor(
+                        summary.allocated,
+                        team.capacity,
+                      );
 
                       return (
                         <TableRow key={team.id}>
                           <TableCell className="font-medium">
                             <div className="flex items-center gap-2">
-                              <Circle className={`h-3 w-3 fill-current ${utilizationColor}`} />
+                              <Circle
+                                className={`h-3 w-3 fill-current ${utilizationColor}`}
+                              />
                               {team.name}
                             </div>
                           </TableCell>
@@ -254,7 +292,7 @@ export function GlobalView() {
                           <TableCell>{remaining}</TableCell>
                           <TableCell>{summary.value}</TableCell>
                         </TableRow>
-                      )
+                      );
                     })
                   )}
                 </TableBody>
@@ -278,20 +316,33 @@ export function GlobalView() {
                 <TableBody>
                   {selectedProjects.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-6 text-muted-foreground">
-                        No projects selected. Add projects and set team capacities, or adjust filters.
+                      <TableCell
+                        colSpan={5}
+                        className="text-center py-6 text-muted-foreground"
+                      >
+                        No projects selected. Add projects and set team
+                        capacities, or adjust filters.
                       </TableCell>
                     </TableRow>
                   ) : (
                     selectedProjects.map((project) => {
-                      const team = debouncedInputs.teams.find((t) => t.id === project.teamId)
-                      const canManageDependencies = project.effort !== null && project.value !== null
+                      const team = storeTeams.find(
+                        (t) => t.id === project.teamId,
+                      );
+                      const canManageDependencies =
+                        project.effort !== null && project.value !== null;
                       return (
                         <TableRow key={project.id}>
-                          <TableCell className="font-medium">{project.title}</TableCell>
+                          <TableCell className="font-medium">
+                            {project.title}
+                          </TableCell>
                           <TableCell>{team?.name || "Unknown"}</TableCell>
-                          <TableCell>{project.effort !== null ? project.effort : "--"}</TableCell>
-                          <TableCell>{project.value !== null ? project.value : "--"}</TableCell>
+                          <TableCell>
+                            {project.effort !== null ? project.effort : "--"}
+                          </TableCell>
+                          <TableCell>
+                            {project.value !== null ? project.value : "--"}
+                          </TableCell>
                           <TableCell>
                             <Button
                               variant="ghost"
@@ -304,7 +355,7 @@ export function GlobalView() {
                             </Button>
                           </TableCell>
                         </TableRow>
-                      )
+                      );
                     })
                   )}
                 </TableBody>
@@ -313,7 +364,12 @@ export function GlobalView() {
 
             {selectedProjects.length > 0 && (
               <div className="mt-4 flex justify-end">
-                <Button variant="outline" size="sm" onClick={exportToCSV} className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={exportToCSV}
+                  className="flex items-center gap-2"
+                >
                   <Download className="h-4 w-4" />
                   Export to CSV
                 </Button>
@@ -333,7 +389,9 @@ export function GlobalView() {
 
             {unselectedProjects.length > 0 && (
               <>
-                <h3 className="text-xl font-semibold mt-8 mb-4">Postponed Projects</h3>
+                <h3 className="text-xl font-semibold mt-8 mb-4">
+                  Postponed Projects
+                </h3>
                 <div className="border rounded-md">
                   <Table>
                     <TableHeader>
@@ -347,11 +405,16 @@ export function GlobalView() {
                     </TableHeader>
                     <TableBody className="text-muted-foreground">
                       {unselectedProjects.map((project) => {
-                        const team = debouncedInputs.teams.find((t) => t.id === project.teamId)
-                        const canManageDependencies = project.effort !== null && project.value !== null
+                        const team = storeTeams.find(
+                          (t) => t.id === project.teamId,
+                        );
+                        const canManageDependencies =
+                          project.effort !== null && project.value !== null;
                         return (
                           <TableRow key={project.id}>
-                            <TableCell className="font-medium">{project.title}</TableCell>
+                            <TableCell className="font-medium">
+                              {project.title}
+                            </TableCell>
                             <TableCell>{team?.name || "Unknown"}</TableCell>
                             <TableCell>{project.effort ?? "--"}</TableCell>
                             <TableCell>{project.value ?? "--"}</TableCell>
@@ -363,11 +426,13 @@ export function GlobalView() {
                                 disabled={!canManageDependencies}
                               >
                                 <Network className="h-4 w-4" />
-                                <span className="sr-only">View dependencies</span>
+                                <span className="sr-only">
+                                  View dependencies
+                                </span>
                               </Button>
                             </TableCell>
                           </TableRow>
-                        )
+                        );
                       })}
                     </TableBody>
                   </Table>
@@ -379,5 +444,5 @@ export function GlobalView() {
       </div>
       <DependencyDrawer />
     </div>
-  )
+  );
 }
