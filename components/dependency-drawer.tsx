@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useState, useMemo } from "react"
 import ReactFlow, {
   Background,
   Controls,
@@ -20,9 +20,9 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Plus, Link, ArrowRight } from "lucide-react"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 const nodeTypes: NodeTypes = {
   project: ProjectNode,
@@ -33,7 +33,6 @@ function DependencyGraph({ selectedProjectId }: { selectedProjectId: string | nu
   const [nodes, setNodes, onNodesChange] = useNodesState([])
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
 
-  // Build the graph when the selected project changes or dependencies change
   useEffect(() => {
     if (!selectedProjectId) return
 
@@ -43,7 +42,6 @@ function DependencyGraph({ selectedProjectId }: { selectedProjectId: string | nu
     const projectDependencies = getProjectDependencies(selectedProjectId)
     const dependents = getProjectDependents(selectedProjectId)
 
-    // Create nodes
     const graphNodes: Node[] = [
       {
         id: project.id,
@@ -57,7 +55,6 @@ function DependencyGraph({ selectedProjectId }: { selectedProjectId: string | nu
       },
     ]
 
-    // Add dependency nodes (prerequisites)
     projectDependencies.forEach((depId, index) => {
       const depProject = projects[depId]
       if (depProject) {
@@ -74,7 +71,6 @@ function DependencyGraph({ selectedProjectId }: { selectedProjectId: string | nu
       }
     })
 
-    // Add dependent nodes (projects that depend on this)
     dependents.forEach((depId, index) => {
       const depProject = projects[depId]
       if (depProject) {
@@ -91,10 +87,7 @@ function DependencyGraph({ selectedProjectId }: { selectedProjectId: string | nu
       }
     })
 
-    // Create edges
     const graphEdges: Edge[] = []
-
-    // Edges from prerequisites to selected project
     projectDependencies.forEach((depId) => {
       graphEdges.push({
         id: `${depId}-${project.id}`,
@@ -111,7 +104,6 @@ function DependencyGraph({ selectedProjectId }: { selectedProjectId: string | nu
       })
     })
 
-    // Edges from selected project to dependents
     dependents.forEach((depId) => {
       graphEdges.push({
         id: `${project.id}-${depId}`,
@@ -158,113 +150,97 @@ export function DependencyDrawer() {
     duplicateProjectAsLinked,
     checkForCyclicDependency,
     getProjectDependencies,
-    getProjectDependents,
     showGlobalView,
   } = useAppStore()
 
-  const [selectedTeamId, setSelectedTeamId] = useState<string>("")
+  const [selectedTeamIdForLink, setSelectedTeamIdForLink] = useState<string>("") // Renamed for clarity
   const [showAdvancedOptions, setShowAdvancedOptions] = useState<string | null>(null)
-  const [targetProjectId, setTargetProjectId] = useState<string>("")
-  const [newProjectTitle, setNewProjectTitle] = useState("")
+  const [targetProjectIdForExistingLink, setTargetProjectIdForExistingLink] = useState<string>("") // Renamed
+  const [newProjectTitleForNewLink, setNewProjectTitleForNewLink] = useState("") // Renamed
   const [error, setError] = useState<string | null>(null)
 
   const selectedProject = selectedProjectId ? projects[selectedProjectId] : null
 
-  // Get current dependencies to filter out already linked projects
   const currentDependencies = selectedProjectId ? getProjectDependencies(selectedProjectId) : []
-  const dependentTeams = currentDependencies.map((depId) => projects[depId]?.teamId).filter(Boolean)
 
-  // Filter out projects that are already linked to the selected project or the selected project itself
-  const selectedTeamProjects = Object.values(projects).filter(
+  const selectedTeamProjectsForExistingLink = Object.values(projects).filter(
     (project) =>
-      project.teamId === selectedTeamId &&
+      project.teamId === selectedTeamIdForLink &&
       !currentDependencies.includes(project.id) &&
       project.id !== selectedProjectId,
   )
 
-  // Determine if we're in readonly mode (when opened from Global View)
   const isReadonly = showGlobalView
 
-  // Reset state when panel is closed and reopened
   useEffect(() => {
     if (!selectedProjectId) {
-      setSelectedTeamId("")
+      setSelectedTeamIdForLink("")
       setShowAdvancedOptions(null)
-      setTargetProjectId("")
-      setNewProjectTitle("")
+      setTargetProjectIdForExistingLink("")
+      setNewProjectTitleForNewLink("")
       setError(null)
     }
   }, [selectedProjectId])
 
-  const handleLinkToTeam = useCallback(() => {
-    if (!selectedProjectId || !selectedTeamId || !selectedProject || isReadonly) return
+  const linkedCopyExistsInTargetTeam = useMemo(() => {
+    if (!selectedProjectId || !selectedTeamIdForLink) return false
+    return Object.values(projects).some(
+      (p) => p.teamId === selectedTeamIdForLink && p.isLinkedCopy && p.sourceProjectId === selectedProjectId,
+    )
+  }, [projects, selectedProjectId, selectedTeamIdForLink])
 
+  const handleLinkToTeamDefault = useCallback(() => {
+    if (!selectedProjectId || !selectedTeamIdForLink || !selectedProject || isReadonly) return
     setError(null)
 
-    // If linking to the same team, we need to create a new project or link to existing
-    if (selectedTeamId === selectedProject.teamId) {
-      setError("Please use 'Link to existing project' or 'Create new project' for same-team dependencies")
+    if (selectedTeamIdForLink === selectedProject.teamId) {
+      setError(
+        "Cannot link to the same team using this option. Use 'Link to existing project' or 'Create new project'.",
+      )
       return
     }
 
-    // Create a linked duplicate project in the target team
-    const newProjectId = duplicateProjectAsLinked(selectedProjectId, selectedTeamId)
+    const newLinkedProjectId = duplicateProjectAsLinked(selectedProjectId, selectedTeamIdForLink)
+    addDependency(newLinkedProjectId, selectedProjectId)
 
-    // Create dependency (new project is prerequisite for selected)
-    addDependency(newProjectId, selectedProjectId)
-
-    // Reset form
-    setSelectedTeamId("")
+    setSelectedTeamIdForLink("")
     setShowAdvancedOptions(null)
-  }, [selectedProjectId, selectedTeamId, selectedProject, duplicateProjectAsLinked, addDependency, isReadonly])
+  }, [selectedProjectId, selectedTeamIdForLink, selectedProject, duplicateProjectAsLinked, addDependency, isReadonly])
 
-  const handleLinkToProject = useCallback(() => {
-    if (!selectedProjectId || !targetProjectId || isReadonly) return
-
+  const handleLinkToExistingProject = useCallback(() => {
+    if (!selectedProjectId || !targetProjectIdForExistingLink || isReadonly) return
     setError(null)
 
-    // Check for cyclic dependency
-    if (checkForCyclicDependency(targetProjectId, selectedProjectId)) {
+    if (checkForCyclicDependency(targetProjectIdForExistingLink, selectedProjectId)) {
       setError("Cannot create a circular dependency")
       return
     }
-
-    // Create the dependency (target is prerequisite for selected)
-    addDependency(targetProjectId, selectedProjectId)
-
-    // Reset selection
-    setTargetProjectId("")
+    addDependency(targetProjectIdForExistingLink, selectedProjectId)
+    setTargetProjectIdForExistingLink("")
     setShowAdvancedOptions(null)
-  }, [selectedProjectId, targetProjectId, addDependency, checkForCyclicDependency, isReadonly])
+  }, [selectedProjectId, targetProjectIdForExistingLink, addDependency, checkForCyclicDependency, isReadonly])
 
-  const handleCreateNewProject = useCallback(() => {
-    if (!selectedProjectId || !selectedTeamId || !newProjectTitle.trim() || isReadonly) return
-
+  const handleCreateNewProjectAndLink = useCallback(() => {
+    if (!selectedProjectId || !selectedTeamIdForLink || !newProjectTitleForNewLink.trim() || isReadonly) return
     setError(null)
 
-    // Create new project in target team
-    const newProjectId = addProject(selectedTeamId, newProjectTitle.trim())
-
-    // Create dependency (new project is prerequisite for selected)
+    const newProjectId = addProject(selectedTeamIdForLink, newProjectTitleForNewLink.trim())
     addDependency(newProjectId, selectedProjectId)
 
-    // Reset form
-    setNewProjectTitle("")
+    setNewProjectTitleForNewLink("")
     setShowAdvancedOptions(null)
-  }, [selectedProjectId, selectedTeamId, newProjectTitle, addProject, addDependency, isReadonly])
+  }, [selectedProjectId, selectedTeamIdForLink, newProjectTitleForNewLink, addProject, addDependency, isReadonly])
 
   const resetAdvancedOptions = () => {
     setShowAdvancedOptions(null)
-    setTargetProjectId("")
-    setNewProjectTitle("")
+    setTargetProjectIdForExistingLink("")
+    setNewProjectTitleForNewLink("")
     setError(null)
   }
 
   if (!selectedProject) return null
 
-  // Check if the selected team is already linked
-  const isTeamAlreadyLinked = selectedTeamId && dependentTeams.includes(selectedTeamId)
-  const isSameTeam = selectedTeamId === selectedProject.teamId
+  const isSameTeamSelectedForLink = selectedTeamIdForLink === selectedProject.teamId
 
   return (
     <Sheet open={!!selectedProjectId} onOpenChange={(open) => !open && selectProject(null)}>
@@ -298,7 +274,7 @@ export function DependencyDrawer() {
               </p>
 
               <div className="space-y-4">
-                <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
+                <Select value={selectedTeamIdForLink} onValueChange={setSelectedTeamIdForLink}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select a team" />
                   </SelectTrigger>
@@ -307,30 +283,43 @@ export function DependencyDrawer() {
                       <SelectItem key={team.id} value={team.id}>
                         {team.name}
                         {team.id === selectedProject.teamId && (
-                          <span className="ml-2 text-muted-foreground">(Current)</span>
-                        )}
-                        {dependentTeams.includes(team.id) && (
-                          <Badge variant="outline" className="ml-2">
-                            Already linked
-                          </Badge>
+                          <span className="ml-2 text-muted-foreground">(Current Team)</span>
                         )}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
 
-                {selectedTeamId && (
+                {selectedTeamIdForLink && (
                   <div className="space-y-3">
-                    {!isSameTeam && (
-                      <Button
-                        onClick={handleLinkToTeam}
-                        className="w-full flex items-center gap-2"
-                        disabled={isTeamAlreadyLinked}
-                      >
-                        <ArrowRight className="h-4 w-4" />
-                        Link to {teams.find((t) => t.id === selectedTeamId)?.name}
-                      </Button>
-                    )}
+                    <TooltipProvider>
+                      <Tooltip open={linkedCopyExistsInTargetTeam ? undefined : false}>
+                        <TooltipTrigger asChild>
+                          {/* The Button component itself needs to be wrapped for TooltipTrigger when disabled */}
+                          <span tabIndex={0}>
+                            {" "}
+                            {/* Wrapper for disabled button tooltip */}
+                            <Button
+                              onClick={handleLinkToTeamDefault}
+                              className="w-full flex items-center gap-2"
+                              disabled={linkedCopyExistsInTargetTeam}
+                              aria-disabled={linkedCopyExistsInTargetTeam} // For accessibility
+                            >
+                              <ArrowRight className="h-4 w-4" />
+                              Link to {teams.find((t) => t.id === selectedTeamIdForLink)?.name}
+                            </Button>
+                          </span>
+                        </TooltipTrigger>
+                        {linkedCopyExistsInTargetTeam && (
+                          <TooltipContent>
+                            <p>
+                              A linked copy of "{selectedProject.title}" already exists in{" "}
+                              {teams.find((t) => t.id === selectedTeamIdForLink)?.name}.
+                            </p>
+                          </TooltipContent>
+                        )}
+                      </Tooltip>
+                    </TooltipProvider>
 
                     <div className="flex gap-2">
                       <Button
@@ -355,27 +344,36 @@ export function DependencyDrawer() {
 
                     {showAdvancedOptions === "existing" && (
                       <div className="border rounded-md p-4 space-y-3">
-                        <h4 className="font-medium">Link to Existing Project</h4>
-                        <Select value={targetProjectId} onValueChange={setTargetProjectId}>
+                        <h4 className="font-medium">
+                          Link to Existing Project in {teams.find((t) => t.id === selectedTeamIdForLink)?.name}
+                        </h4>
+                        <Select
+                          value={targetProjectIdForExistingLink}
+                          onValueChange={setTargetProjectIdForExistingLink}
+                        >
                           <SelectTrigger>
                             <SelectValue placeholder="Select existing project" />
                           </SelectTrigger>
                           <SelectContent>
-                            {selectedTeamProjects.length > 0 ? (
-                              selectedTeamProjects.map((project) => (
+                            {selectedTeamProjectsForExistingLink.length > 0 ? (
+                              selectedTeamProjectsForExistingLink.map((project) => (
                                 <SelectItem key={project.id} value={project.id}>
                                   {project.title}
                                 </SelectItem>
                               ))
                             ) : (
                               <SelectItem value="none" disabled>
-                                No available projects to link
+                                No available projects to link in this team
                               </SelectItem>
                             )}
                           </SelectContent>
                         </Select>
                         <div className="flex gap-2">
-                          <Button onClick={handleLinkToProject} disabled={!targetProjectId} size="sm">
+                          <Button
+                            onClick={handleLinkToExistingProject}
+                            disabled={!targetProjectIdForExistingLink}
+                            size="sm"
+                          >
                             Link Project
                           </Button>
                           <Button variant="ghost" size="sm" onClick={resetAdvancedOptions}>
@@ -387,14 +385,20 @@ export function DependencyDrawer() {
 
                     {showAdvancedOptions === "new" && (
                       <div className="border rounded-md p-4 space-y-3">
-                        <h4 className="font-medium">Create New Project</h4>
+                        <h4 className="font-medium">
+                          Create New Project in {teams.find((t) => t.id === selectedTeamIdForLink)?.name}
+                        </h4>
                         <Input
                           placeholder="New project title"
-                          value={newProjectTitle}
-                          onChange={(e) => setNewProjectTitle(e.target.value)}
+                          value={newProjectTitleForNewLink}
+                          onChange={(e) => setNewProjectTitleForNewLink(e.target.value)}
                         />
                         <div className="flex gap-2">
-                          <Button onClick={handleCreateNewProject} disabled={!newProjectTitle.trim()} size="sm">
+                          <Button
+                            onClick={handleCreateNewProjectAndLink}
+                            disabled={!newProjectTitleForNewLink.trim()}
+                            size="sm"
+                          >
                             Create & Link
                           </Button>
                           <Button variant="ghost" size="sm" onClick={resetAdvancedOptions}>

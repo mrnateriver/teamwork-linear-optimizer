@@ -65,7 +65,7 @@ export function TeamDependencyGraph({ teamId }: TeamDependencyGraphProps) {
             team,
             ...nodeTypeStyle,
           },
-          position: { x: 0, y: 0 }, // Will be auto-layouted later if using a layout algorithm
+          position: { x: 0, y: 0 }, // Will be auto-layouted
         })
         addedNodeIds.add(project.id)
       }
@@ -79,15 +79,13 @@ export function TeamDependencyGraph({ teamId }: TeamDependencyGraphProps) {
 
     // For each team project, find its 1st level dependencies and dependents
     teamProjects.forEach((project) => {
-      const projectTeam = teams.find((t) => t.id === project.teamId)
-
       // First-level dependencies (prerequisites)
       const directDependencies = getProjectDependencies(project.id)
       directDependencies.forEach((depId) => {
         const depProject = projects[depId]
         if (depProject) {
           const depTeam = teams.find((t) => t.id === depProject.teamId)
-          addNode(depProject, depTeam, "dependency")
+          addNode(depProject, depTeam, "dependency") // Mark as dependency
           graphEdges.push({
             id: `${depId}-${project.id}`,
             source: depId,
@@ -104,7 +102,7 @@ export function TeamDependencyGraph({ teamId }: TeamDependencyGraphProps) {
         const dependentProject = projects[dependentId]
         if (dependentProject) {
           const dependentTeam = teams.find((t) => t.id === dependentProject.teamId)
-          addNode(dependentProject, dependentTeam, "dependent")
+          addNode(dependentProject, dependentTeam, "dependent") // Mark as dependent
           graphEdges.push({
             id: `${project.id}-${dependentId}`,
             source: project.id,
@@ -116,28 +114,48 @@ export function TeamDependencyGraph({ teamId }: TeamDependencyGraphProps) {
       })
     })
 
-    // Basic layout (simple grid or column for now, can be improved with a layout library)
-    // This is a very naive layout. For better results, consider elkjs or dagre.
-    const columns = 3 // Dependencies | Team Projects | Dependents
-    const nodesPerColumn: Record<string, Node[]> = { team: [], dependency: [], dependent: [] }
+    // Layout logic: Predecessors (Dependencies) | Team Projects | Successors (Dependents)
+    const columnNodes: {
+      dependencies: Node[]
+      team: Node[]
+      dependents: Node[]
+    } = {
+      dependencies: [],
+      team: [],
+      dependents: [],
+    }
+
     graphNodes.forEach((node) => {
-      if (teamProjects.find((p) => p.id === node.id)) nodesPerColumn.team.push(node)
-      else if (node.data.isPrerequisite) nodesPerColumn.dependency.push(node)
-      else if (node.data.isDependent) nodesPerColumn.dependent.push(node)
-      else nodesPerColumn.team.push(node) // Fallback for safety
+      if (node.data.isPrerequisite) {
+        columnNodes.dependencies.push(node)
+      } else if (node.data.isDependent) {
+        columnNodes.dependents.push(node)
+      } else {
+        // Assume it's a team project if not explicitly a dependency or dependent
+        columnNodes.team.push(node)
+      }
     })
 
-    const currentX = 50
     const ySpacing = 120
-    const xSpacing = 250
+    const xSpacing = 300 // Increased spacing between columns
+    const initialX = 50
 
-    Object.values(nodesPerColumn).forEach((columnNodes, colIndex) => {
-      columnNodes.forEach((node, rowIndex) => {
-        node.position = { x: currentX + colIndex * xSpacing, y: 50 + rowIndex * ySpacing }
-      })
+    // Layout dependencies (Column 1 - Left)
+    columnNodes.dependencies.forEach((node, rowIndex) => {
+      node.position = { x: initialX, y: 50 + rowIndex * ySpacing }
     })
 
-    setNodes(graphNodes)
+    // Layout team projects (Column 2 - Middle)
+    columnNodes.team.forEach((node, rowIndex) => {
+      node.position = { x: initialX + xSpacing, y: 50 + rowIndex * ySpacing }
+    })
+
+    // Layout dependents (Column 3 - Right)
+    columnNodes.dependents.forEach((node, rowIndex) => {
+      node.position = { x: initialX + 2 * xSpacing, y: 50 + rowIndex * ySpacing }
+    })
+
+    setNodes([...graphNodes]) // Trigger re-render with new positions
     setEdges(graphEdges)
   }, [
     teamId,
@@ -146,7 +164,7 @@ export function TeamDependencyGraph({ teamId }: TeamDependencyGraphProps) {
     teams,
     getProjectDependencies,
     getProjectDependents,
-    dependencies,
+    dependencies, // Keep dependencies in the dependency array for ReactFlow updates
     setNodes,
     setEdges,
   ])
