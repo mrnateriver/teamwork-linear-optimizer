@@ -1,11 +1,14 @@
 "use client"
 
+import { useState } from "react"
 import type React from "react"
 import { useAppStore } from "@/lib/store"
 import { ProjectList } from "@/components/project-list"
 import { DependencyDrawer } from "@/components/dependency-drawer"
+import { TeamPrioritizationPanel } from "@/components/team-prioritization-panel"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Info } from "lucide-react"
 
@@ -16,6 +19,7 @@ interface TeamDashboardProps {
 export function TeamDashboard({ teamId }: TeamDashboardProps) {
   const { teams, updateTeamCapacity } = useAppStore()
   const team = teams.find((t) => t.id === teamId)
+  const [activeTab, setActiveTab] = useState("projects")
 
   if (!team) {
     return <div>Team not found</div>
@@ -58,7 +62,19 @@ export function TeamDashboard({ teamId }: TeamDashboardProps) {
         </div>
       </div>
 
-      <ProjectList teamId={teamId} />
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList>
+          <TabsTrigger value="projects">Projects</TabsTrigger>
+          <TabsTrigger value="prioritization">Team Prioritization</TabsTrigger>
+        </TabsList>
+        <TabsContent value="projects" className="mt-4">
+          <ProjectList teamId={teamId} />
+        </TabsContent>
+        <TabsContent value="prioritization" className="mt-4">
+          <TeamPrioritizationPanel teamId={teamId} />
+        </TabsContent>
+      </Tabs>
+
       <DependencyDrawer />
     </div>
   )

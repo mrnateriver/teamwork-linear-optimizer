@@ -143,7 +143,7 @@ function planProjectsOptimized(
 export function prioritizeProjects(
   allProjects: Project[],
   teams: Team[],
-  dependencies: { sourceId: string; targetId: string }[],
+  dependencies: { sourceId: string; targetId: string }[] = [], // Default to empty array
 ): PrioritizationResult {
   // Filter out projects with missing effort or value
   const validProjects = allProjects.filter(
