@@ -20,8 +20,10 @@ interface AppState {
   initializeStore: () => void
 
   // Team actions
-  addTeam: (name: string) => string
+  addTeam: (name: string, capacity?: number) => string // Added capacity
+  updateTeamName: (id: string, name: string) => void
   updateTeamCapacity: (id: string, capacity: number) => void
+  deleteTeam: (id: string) => void
   selectTeam: (id: string | null) => void
 
   // Project actions
@@ -68,15 +70,23 @@ export const useAppStore = create<AppState>()(
       },
 
       // Team actions
-      addTeam: (name) => {
+      addTeam: (name, capacity = 0) => {
+        // Default capacity to 0
         const id = crypto.randomUUID()
 
         set((state) => ({
-          teams: [...state.teams, { id, name, capacity: 0 }],
+          teams: [...state.teams, { id, name, capacity }], // Use provided capacity
           selectedTeamId: id,
+          showGlobalView: false, // Switch to the new team view
         }))
 
         return id
+      },
+
+      updateTeamName: (id, name) => {
+        set((state) => ({
+          teams: state.teams.map((team) => (team.id === id ? { ...team, name } : team)),
+        }))
       },
 
       updateTeamCapacity: (id, capacity) => {
@@ -85,8 +95,71 @@ export const useAppStore = create<AppState>()(
         }))
       },
 
+      deleteTeam: (id) => {
+        set((state) => {
+          const teamToDelete = state.teams.find((team) => team.id === id)
+          if (!teamToDelete) return state
+
+          // Get IDs of projects belonging to the deleted team
+          const projectsToDeleteIds = Object.values(state.projects)
+            .filter((p) => p.teamId === id)
+            .map((p) => p.id)
+
+          // Create a new projects object excluding the deleted team's projects
+          const remainingProjects: Record<string, Project> = { ...state.projects }
+          projectsToDeleteIds.forEach((projectId) => {
+            delete remainingProjects[projectId]
+          })
+
+          // Update linked copies: projects in other teams that were linked to projects from the deleted team
+          Object.values(remainingProjects).forEach((project) => {
+            if (
+              project.isLinkedCopy &&
+              project.sourceProjectId &&
+              projectsToDeleteIds.includes(project.sourceProjectId)
+            ) {
+              // This project was linked to a project in the deleted team. Make it standalone.
+              remainingProjects[project.id] = {
+                ...project,
+                isLinkedCopy: false, // No longer a linked copy
+                sourceProjectId: undefined, // Remove link to source
+              }
+            }
+          })
+
+          // Remove dependencies involving deleted projects
+          const remainingDependencies = state.dependencies.filter(
+            (dep) => !projectsToDeleteIds.includes(dep.sourceId) && !projectsToDeleteIds.includes(dep.targetId),
+          )
+
+          // Remove the team
+          const remainingTeams = state.teams.filter((team) => team.id !== id)
+
+          // Determine the next selected team
+          let nextSelectedTeamId = state.selectedTeamId
+          if (state.selectedTeamId === id) {
+            if (remainingTeams.length > 0) {
+              nextSelectedTeamId = remainingTeams[0].id // Select the first remaining team
+            } else {
+              nextSelectedTeamId = null // No teams left
+            }
+          }
+
+          return {
+            teams: remainingTeams,
+            projects: remainingProjects,
+            dependencies: remainingDependencies,
+            selectedTeamId: nextSelectedTeamId,
+            showGlobalView: remainingTeams.length === 0 ? false : state.showGlobalView, // If no teams, don't show global view
+            selectedProjectId: projectsToDeleteIds.includes(state.selectedProjectId || "")
+              ? null
+              : state.selectedProjectId,
+          }
+        })
+      },
+
       selectTeam: (id) => {
-        set({ selectedTeamId: id })
+        set({ selectedTeamId: id, showGlobalView: false })
       },
 
       // Project actions
@@ -290,7 +363,7 @@ export const useAppStore = create<AppState>()(
 
       // View actions
       setShowGlobalView: (show) => {
-        set({ showGlobalView: show })
+        set({ showGlobalView: show, selectedTeamId: show ? null : get().selectedTeamId })
       },
     }),
     {
