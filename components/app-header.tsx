@@ -1,7 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import type React from "react" // Added useRef
+import { useState, useRef } from "react"
 import { useAppStore } from "@/lib/store"
+import type { ImportedJsonFile } from "@/lib/types" // Added ImportedJsonFile
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -22,16 +24,18 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { ModeToggle } from "@/components/mode-toggle"
-import { ChevronDown, Plus } from "lucide-react"
+import { ChevronDown, Plus, Upload } from "lucide-react" // Added Upload icon
 
 export function AppHeader() {
-  const { teams, addTeam, selectedTeamId, selectTeam, showGlobalView, setShowGlobalView } = useAppStore()
+  const { teams, addTeam, selectedTeamId, selectTeam, showGlobalView, setShowGlobalView, importData } = useAppStore()
 
   const [newTeamName, setNewTeamName] = useState("")
   const [newTeamCapacity, setNewTeamCapacity] = useState<number | string>(0)
   const [createTeamDialogOpen, setCreateTeamDialogOpen] = useState(false)
   const [createTeamNameError, setCreateTeamNameError] = useState("")
   const [createTeamCapacityError, setCreateTeamCapacityError] = useState("")
+
+  const fileInputRef = useRef<HTMLInputElement>(null) // Ref for file input
 
   const selectedTeam = teams.find((team) => team.id === selectedTeamId)
 
@@ -57,6 +61,57 @@ export function AppHeader() {
     setCreateTeamCapacityError("")
   }
 
+  const handleImportClick = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      try {
+        const text = e.target?.result
+        if (typeof text !== "string") {
+          alert("Error reading file content.")
+          return
+        }
+        const jsonData = JSON.parse(text) as ImportedJsonFile
+
+        // Basic validation
+        if (
+          !jsonData ||
+          !Array.isArray(jsonData.teams) ||
+          typeof jsonData.projects !== "object" ||
+          !Array.isArray(jsonData.dependencies)
+        ) {
+          alert("Invalid JSON file structure. Please ensure it matches the required format.")
+          return
+        }
+        // Further validation can be added here to check properties of each item
+
+        importData(jsonData)
+        alert("Data imported successfully!")
+      } catch (error) {
+        console.error("Error importing JSON:", error)
+        alert("Failed to import JSON. Please check the file format and content.")
+      } finally {
+        // Reset file input to allow importing the same file again if needed
+        if (fileInputRef.current) {
+          fileInputRef.current.value = ""
+        }
+      }
+    }
+    reader.onerror = () => {
+      alert("Error reading file.")
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ""
+      }
+    }
+    reader.readAsText(file)
+  }
+
   return (
     <header className="border-b">
       <div className="container mx-auto p-4 flex items-center justify-between">
@@ -74,7 +129,7 @@ export function AppHeader() {
                     <ChevronDown className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
+                <DropdownMenuContent align="end" className="max-h-[80vh] overflow-y-auto">
                   {teams.map((team) => (
                     <DropdownMenuItem
                       key={team.id}
@@ -144,6 +199,12 @@ export function AppHeader() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+
+          {/* Import JSON Button */}
+          <Button variant="outline" size="sm" onClick={handleImportClick} className="flex items-center gap-1">
+            <Upload className="h-4 w-4" /> Import JSON
+          </Button>
+          <input type="file" ref={fileInputRef} accept=".json" onChange={handleFileChange} className="hidden" />
 
           <ModeToggle />
         </div>

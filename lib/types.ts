@@ -23,3 +23,10 @@ export interface TeamSummary {
   allocated: number
   value: number
 }
+
+// Add the new interface for the imported JSON file structure
+export interface ImportedJsonFile {
+  teams: Team[]
+  projects: Record<string, Project>
+  dependencies: Dependency[]
+}

@@ -2,7 +2,7 @@
 
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
-import type { Team, Project, Dependency } from "@/lib/types"
+import type { Team, Project, Dependency, ImportedJsonFile } from "@/lib/types" // Added ImportedJsonFile
 
 interface AppState {
   // Data
@@ -18,6 +18,7 @@ interface AppState {
 
   // Actions
   initializeStore: () => void
+  importData: (data: ImportedJsonFile) => void // New action for importing data
 
   // Team actions
   addTeam: (name: string, capacity?: number) => string // Added capacity
@@ -67,6 +68,30 @@ export const useAppStore = create<AppState>()(
         } else {
           set({ initialized: true })
         }
+      },
+
+      importData: (data: ImportedJsonFile) => {
+        // Basic validation
+        if (
+          !data ||
+          !Array.isArray(data.teams) ||
+          typeof data.projects !== "object" ||
+          !Array.isArray(data.dependencies)
+        ) {
+          console.error("Invalid data format for import.")
+          // Optionally, you could throw an error or show a UI notification
+          return
+        }
+
+        set({
+          teams: data.teams,
+          projects: data.projects,
+          dependencies: data.dependencies,
+          selectedTeamId: data.teams.length > 0 ? data.teams[0].id : null,
+          selectedProjectId: null,
+          showGlobalView: data.teams.length === 0,
+          initialized: true,
+        })
       },
 
       // Team actions
