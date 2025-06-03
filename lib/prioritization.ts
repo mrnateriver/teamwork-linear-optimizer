@@ -145,9 +145,14 @@ export function prioritizeProjects(
   teams: Team[],
   dependencies: { sourceId: string; targetId: string }[] = [], // Default to empty array
 ): PrioritizationResult {
-  // Filter out projects with missing effort or value
+  // Filter out projects with missing effort or value, or zero value.
+  // Allow projects with zero effort if they have non-zero value.
   const validProjects = allProjects.filter(
-    (project) => project.effort !== null && project.value !== null && project.effort > 0 && project.value > 0,
+    (project) =>
+      project.effort !== null &&
+      project.value !== null &&
+      project.effort >= 0 && // Allow zero effort
+      project.value > 0, // Must have some value
   )
 
   // Transform data structures for the optimization algorithm

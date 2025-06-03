@@ -1,9 +1,9 @@
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, useState, useEffect } from "react" // Added useState, useEffect
 import { useAppStore } from "@/lib/store"
 import { prioritizeProjects } from "@/lib/prioritization"
-import type { Project } from "@/lib/types"
+import type { Project, Team, Dependency } from "@/lib/types" // Added Team, Dependency
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
@@ -14,39 +14,68 @@ interface TeamPrioritizationPanelProps {
   teamId: string
 }
 
+const DEBOUNCE_DELAY = 500 // 500ms
+
 export function TeamPrioritizationPanel({ teamId }: TeamPrioritizationPanelProps) {
-  const { teams, projects, selectProject, getDependencies } = useAppStore()
+  const storeProjects = useAppStore((state) => state.projects)
+  const storeTeams = useAppStore((state) => state.teams)
+  const getDependencies = useAppStore((state) => state.getDependencies)
+  const selectProject = useAppStore((state) => state.selectProject)
 
-  const team = teams.find((t) => t.id === teamId)
+  const currentTeam = useMemo(() => storeTeams.find((t) => t.id === teamId), [storeTeams, teamId])
 
-  // Get only this team's projects
   const teamProjects = useMemo(() => {
-    return Object.values(projects).filter((project) => project.teamId === teamId)
-  }, [projects, teamId])
+    return Object.values(storeProjects).filter((project) => project.teamId === teamId)
+  }, [storeProjects, teamId])
 
-  // Calculate prioritized projects for this team only
-  const { selectedProjects, unselectedProjects, teamSummaries } = useMemo(() => {
-    if (!team) return { selectedProjects: [], unselectedProjects: [], teamSummaries: {} }
-
-    // Get all dependencies and filter for those relevant to this team's projects
+  const relevantDependencies = useMemo(() => {
+    if (!currentTeam) return []
     const allDependencies = getDependencies()
-    const teamProjectIds = new Set(teamProjects.map((p) => p.id))
-
-    // Include dependencies where either source or target is in this team
-    // This ensures we consider cross-team dependencies that affect this team
-    const relevantDependencies = allDependencies.filter(
-      (dep) => teamProjectIds.has(dep.sourceId) || teamProjectIds.has(dep.targetId),
+    const currentTeamProjectIds = new Set(teamProjects.map((p) => p.id))
+    return allDependencies.filter(
+      (dep) => currentTeamProjectIds.has(dep.sourceId) || currentTeamProjectIds.has(dep.targetId),
     )
+  }, [currentTeam, teamProjects, getDependencies])
 
-    return prioritizeProjects(teamProjects, [team], relevantDependencies)
-  }, [teamProjects, team, getDependencies])
+  // State for debounced data
+  const [debouncedInputs, setDebouncedInputs] = useState<{
+    projects: Project[]
+    team: Team | undefined
+    dependencies: Dependency[]
+  }>({
+    projects: teamProjects,
+    team: currentTeam,
+    dependencies: relevantDependencies,
+  })
+
+  // Effect to debounce inputs
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedInputs({
+        projects: teamProjects,
+        team: currentTeam,
+        dependencies: relevantDependencies,
+      })
+    }, DEBOUNCE_DELAY)
+
+    return () => {
+      clearTimeout(handler)
+    }
+  }, [teamProjects, currentTeam, relevantDependencies])
+
+  // Calculate prioritized projects using debounced inputs
+  const { selectedProjects, unselectedProjects, teamSummaries } = useMemo(() => {
+    if (!debouncedInputs.team) return { selectedProjects: [], unselectedProjects: [], teamSummaries: {} }
+    // Ensure debouncedInputs.projects is used here
+    return prioritizeProjects(debouncedInputs.projects, [debouncedInputs.team], debouncedInputs.dependencies)
+  }, [debouncedInputs])
 
   // Calculate team utilization
   const teamUtilization = useMemo(() => {
-    if (!team || team.capacity === 0) return 0
+    if (!debouncedInputs.team || debouncedInputs.team.capacity === 0) return 0
     const summary = teamSummaries[teamId] || { allocated: 0, value: 0 }
-    return (summary.allocated / team.capacity) * 100
-  }, [team, teamSummaries, teamId])
+    return (summary.allocated / debouncedInputs.team.capacity) * 100
+  }, [debouncedInputs.team, teamSummaries, teamId])
 
   const handleViewDependencies = (project: Project) => {
     selectProject(project.id)
@@ -54,49 +83,32 @@ export function TeamPrioritizationPanel({ teamId }: TeamPrioritizationPanelProps
 
   // Function to export prioritized projects to CSV
   const exportToCSV = () => {
-    if (selectedProjects.length === 0) return
+    if (selectedProjects.length === 0 || !currentTeam) return
 
-    // Create CSV headers
     const headers = ["Project", "Effort", "Value", "Value/Effort Ratio"]
-
-    // Create CSV rows
     const rows = selectedProjects.map((project) => {
       const effort = project.effort !== null ? project.effort : 0
       const value = project.value !== null ? project.value : 0
       const ratio = effort > 0 ? (value / effort).toFixed(2) : "∞"
-
-      return [
-        `"${project.title}"`, // Quote the title to handle commas in titles
-        effort,
-        value,
-        ratio,
-      ].join(",")
+      return [`"${project.title}"`, effort, value, ratio].join(",")
     })
-
-    // Combine headers and rows
     const csvContent = [headers.join(","), ...rows].join("\n")
-
-    // Create a Blob with the CSV content
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
-
-    // Create a download link
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
     link.setAttribute("href", url)
-    link.setAttribute("download", `${team?.name}-prioritized-projects.csv`)
+    link.setAttribute("download", `${currentTeam.name}-prioritized-projects.csv`)
     link.style.display = "none"
-
-    // Add to document, trigger download, and clean up
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
     URL.revokeObjectURL(url)
   }
 
-  if (!team) return null
+  if (!currentTeam) return null // Or debouncedInputs.team
 
   const summary = teamSummaries[teamId] || { allocated: 0, value: 0 }
-  const remaining = team.capacity - summary.allocated
+  const remaining = (debouncedInputs.team?.capacity || 0) - summary.allocated
 
   return (
     <div className="space-y-4">
@@ -131,7 +143,7 @@ export function TeamPrioritizationPanel({ teamId }: TeamPrioritizationPanelProps
             </div>
             <div>
               <span className="text-muted-foreground">Total Capacity:</span>{" "}
-              <span className="font-medium">{team.capacity}</span>
+              <span className="font-medium">{debouncedInputs.team?.capacity || 0}</span>
             </div>
           </div>
         </div>
@@ -158,7 +170,7 @@ export function TeamPrioritizationPanel({ teamId }: TeamPrioritizationPanelProps
                     variant="ghost"
                     size="icon"
                     onClick={() => handleViewDependencies(project)}
-                    disabled={!project.effort || !project.value}
+                    disabled={project.effort === null || project.value === null}
                   >
                     <Network className="h-4 w-4" />
                     <span className="sr-only">View dependencies</span>
@@ -191,14 +203,14 @@ export function TeamPrioritizationPanel({ teamId }: TeamPrioritizationPanelProps
                     <div>
                       <div className="font-medium">{project.title}</div>
                       <div className="text-xs">
-                        Effort: {project.effort || "--"} | Value: {project.value || "--"}
+                        Effort: {project.effort ?? "--"} | Value: {project.value ?? "--"}
                       </div>
                     </div>
                     <Button
                       variant="ghost"
                       size="icon"
                       onClick={() => handleViewDependencies(project)}
-                      disabled={!project.effort || !project.value}
+                      disabled={project.effort === null || project.value === null}
                     >
                       <Network className="h-4 w-4" />
                       <span className="sr-only">View dependencies</span>

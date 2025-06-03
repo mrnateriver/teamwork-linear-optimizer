@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react"
 import { useAppStore } from "@/lib/store"
 import { ProjectList } from "@/components/project-list"
-import { DependencyDrawer } from "@/components/dependency-drawer"
+// DependencyDrawer is now rendered at the page level (e.g. app/team/[teamId]/page.tsx)
+// import { DependencyDrawer } from "@/components/dependency-drawer"
 import { TeamPrioritizationPanel } from "@/components/team-prioritization-panel"
 import { TeamDependencyGraph } from "@/components/team-dependency-graph"
 import { Input } from "@/components/ui/input"
@@ -30,15 +31,19 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Edit, Trash2 } from "lucide-react"
+import { useRouter, usePathname } from "next/navigation" // For navigation on delete
 
 interface TeamDashboardProps {
-  teamId: string
+  teamId: string // Passed from dynamic route params
 }
 
 export function TeamDashboard({ teamId }: TeamDashboardProps) {
-  const { teams, updateTeamCapacity, updateTeamName, deleteTeam } = useAppStore()
+  const { teams, updateTeamCapacity, updateTeamName, deleteTeam: deleteTeamFromStore } = useAppStore()
   const team = teams.find((t) => t.id === teamId)
   const [activeTab, setActiveTab] = useState("projects")
+
+  const router = useRouter()
+  const pathname = usePathname()
 
   const [editTeamName, setEditTeamName] = useState("")
   const [editTeamCapacity, setEditTeamCapacity] = useState<number | string>(0)
@@ -52,11 +57,15 @@ export function TeamDashboard({ teamId }: TeamDashboardProps) {
     if (team) {
       setEditTeamName(team.name)
       setEditTeamCapacity(team.capacity)
+    } else {
+      // If team is not found (e.g., after deletion and before redirect, or invalid ID)
+      // This component might unmount before this is an issue due to page-level redirect
     }
   }, [team])
 
   if (!team) {
-    return <div>Team not found</div>
+    // This case should ideally be handled by the page component redirecting
+    return <div>Team not found. You might be redirected shortly.</div>
   }
 
   const handleOpenEditTeamDialog = () => {
@@ -91,8 +100,9 @@ export function TeamDashboard({ teamId }: TeamDashboardProps) {
   }
 
   const handleDeleteTeam = () => {
-    deleteTeam(teamId)
+    deleteTeamFromStore(teamId, pathname, router.replace)
     setDeleteTeamDialogOpen(false)
+    // Navigation will be handled by the deleteTeam store action
   }
 
   return (
@@ -137,7 +147,8 @@ export function TeamDashboard({ teamId }: TeamDashboardProps) {
         </TabsContent>
       </Tabs>
 
-      <DependencyDrawer />
+      {/* DependencyDrawer is now rendered at the page level */}
+      {/* <DependencyDrawer /> */}
 
       {/* Edit Team Dialog */}
       <Dialog open={editTeamDialogOpen} onOpenChange={setEditTeamDialogOpen}>

@@ -61,8 +61,7 @@ export function ProjectItem({ project, showFromTeam = false }: ProjectItemProps)
   const linkedCopyNeedsInput = isLinkedCopy && project.effort === null
 
   // Project can manage dependencies if effort and value are set and greater than 0
-  const canManageDependencies =
-    project.effort !== null && project.value !== null && project.effort > 0 && project.value > 0
+  const canManageDependencies = project.effort !== null && project.value !== null
 
   const handleEffortChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     // Handle empty input
@@ -103,28 +102,6 @@ export function ProjectItem({ project, showFromTeam = false }: ProjectItemProps)
   return (
     <>
       <TableRow className={`${isSelected ? "bg-muted" : ""}`}>
-        <TableCell className="font-medium">
-          <div className="flex items-center gap-2">
-            {project.title}
-            {isLinkedCopy && (
-              <Badge variant="secondary" className="flex items-center gap-1">
-                <Lock className="h-3 w-3" />
-                Linked Copy
-              </Badge>
-            )}
-            {needsInput && !isLinkedCopy && (
-              <Badge variant="outline" className="text-amber-500 border-amber-500">
-                Needs input
-              </Badge>
-            )}
-            {linkedCopyNeedsInput && (
-              <Badge variant="outline" className="text-amber-500 border-amber-500">
-                Requires input
-              </Badge>
-            )}
-          </div>
-        </TableCell>
-
         {showFromTeam && (
           <TableCell>
             {isLinkedCopy && originTeamName ? (
@@ -132,6 +109,28 @@ export function ProjectItem({ project, showFromTeam = false }: ProjectItemProps)
             ) : null}
           </TableCell>
         )}
+
+        <TableCell className="font-medium">
+          <div className="flex items-center gap-2">
+            {project.title}
+            {isLinkedCopy && (
+              <Badge variant="secondary" className="flex items-center gap-1 whitespace-nowrap">
+                <Lock className="h-3 w-3" />
+                Linked Copy
+              </Badge>
+            )}
+            {needsInput && !isLinkedCopy && (
+              <Badge variant="outline" className="text-amber-500 border-amber-500 whitespace-nowrap">
+                Needs input
+              </Badge>
+            )}
+            {linkedCopyNeedsInput && (
+              <Badge variant="outline" className="text-amber-500 border-amber-500 whitespace-nowrap">
+                Requires input
+              </Badge>
+            )}
+          </div>
+        </TableCell>
 
         <TableCell>
           <Input
@@ -158,7 +157,7 @@ export function ProjectItem({ project, showFromTeam = false }: ProjectItemProps)
           />
         </TableCell>
         <TableCell>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-center gap-2">
             {hasDependencies && (
               <div className="flex items-center gap-1 text-sm text-muted-foreground">
                 <ArrowUp className="h-4 w-4" />
@@ -171,6 +170,7 @@ export function ProjectItem({ project, showFromTeam = false }: ProjectItemProps)
                 <span>{dependents.length}</span>
               </div>
             )}
+            {!hasDependencies && !hasDependents && <span className="text-sm text-muted-foreground">-</span>}
           </div>
         </TableCell>
         <TableCell>

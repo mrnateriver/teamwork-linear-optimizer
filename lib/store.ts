@@ -2,7 +2,7 @@
 
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
-import type { Team, Project, Dependency, ImportedJsonFile } from "@/lib/types" // Added ImportedJsonFile
+import type { Team, Project, Dependency, ImportedJsonFile } from "@/lib/types"
 
 interface AppState {
   // Data
@@ -11,21 +11,21 @@ interface AppState {
   dependencies: Dependency[]
 
   // UI state
-  selectedTeamId: string | null
+  selectedTeamId: string | null // Still useful for non-route related selections or default states
   selectedProjectId: string | null
-  showGlobalView: boolean
+  showGlobalView: boolean // Can be deprecated or used for other UI toggles if needed
   initialized: boolean
 
   // Actions
   initializeStore: () => void
-  importData: (data: ImportedJsonFile) => void // New action for importing data
+  importData: (data: ImportedJsonFile) => void
 
   // Team actions
-  addTeam: (name: string, capacity?: number) => string // Added capacity
+  addTeam: (name: string, capacity?: number) => string // Returns new team ID
   updateTeamName: (id: string, name: string) => void
   updateTeamCapacity: (id: string, capacity: number) => void
-  deleteTeam: (id: string) => void
-  selectTeam: (id: string | null) => void
+  deleteTeam: (id: string, currentPathname?: string, navigate?: (path: string) => void) => void // Added params for navigation
+  selectTeam: (id: string | null) => void // May become less critical for view rendering
 
   // Project actions
   addProject: (teamId: string, title: string) => string
@@ -44,34 +44,29 @@ interface AppState {
   getDependencies: () => Dependency[]
 
   // View actions
-  setShowGlobalView: (show: boolean) => void
+  setShowGlobalView: (show: boolean) => void // May be deprecated
 }
 
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
-      // Initial state
       teams: [],
       projects: {},
       dependencies: [],
       selectedTeamId: null,
       selectedProjectId: null,
-      showGlobalView: false,
+      showGlobalView: false, // Default, routing will override
       initialized: false,
 
-      // Initialize the store with sample data if empty
       initializeStore: () => {
-        const { teams } = get()
-
-        if (teams.length === 0) {
-          set({ initialized: true })
-        } else {
+        if (!get().initialized) {
+          // Check before setting to avoid loop with persist
+          console.log("Initializing store from persisted state or defaults.")
           set({ initialized: true })
         }
       },
 
       importData: (data: ImportedJsonFile) => {
-        // Basic validation
         if (
           !data ||
           !Array.isArray(data.teams) ||
@@ -79,33 +74,27 @@ export const useAppStore = create<AppState>()(
           !Array.isArray(data.dependencies)
         ) {
           console.error("Invalid data format for import.")
-          // Optionally, you could throw an error or show a UI notification
           return
         }
-
         set({
           teams: data.teams,
           projects: data.projects,
           dependencies: data.dependencies,
           selectedTeamId: data.teams.length > 0 ? data.teams[0].id : null,
           selectedProjectId: null,
-          showGlobalView: data.teams.length === 0,
+          showGlobalView: data.teams.length === 0, // This might be less relevant now
           initialized: true,
         })
       },
 
-      // Team actions
       addTeam: (name, capacity = 0) => {
-        // Default capacity to 0
         const id = crypto.randomUUID()
-
         set((state) => ({
-          teams: [...state.teams, { id, name, capacity }], // Use provided capacity
-          selectedTeamId: id,
-          showGlobalView: false, // Switch to the new team view
+          teams: [...state.teams, { id, name, capacity }],
+          // selectedTeamId: id, // Navigation will handle setting the view
+          // showGlobalView: false,
         }))
-
-        return id
+        return id // Return new team ID for navigation
       },
 
       updateTeamName: (id, name) => {
@@ -120,54 +109,52 @@ export const useAppStore = create<AppState>()(
         }))
       },
 
-      deleteTeam: (id) => {
+      deleteTeam: (id, currentPathname, navigate) => {
         set((state) => {
           const teamToDelete = state.teams.find((team) => team.id === id)
           if (!teamToDelete) return state
 
-          // Get IDs of projects belonging to the deleted team
           const projectsToDeleteIds = Object.values(state.projects)
             .filter((p) => p.teamId === id)
             .map((p) => p.id)
-
-          // Create a new projects object excluding the deleted team's projects
           const remainingProjects: Record<string, Project> = { ...state.projects }
-          projectsToDeleteIds.forEach((projectId) => {
-            delete remainingProjects[projectId]
-          })
+          projectsToDeleteIds.forEach((projectId) => delete remainingProjects[projectId])
 
-          // Update linked copies: projects in other teams that were linked to projects from the deleted team
           Object.values(remainingProjects).forEach((project) => {
             if (
               project.isLinkedCopy &&
               project.sourceProjectId &&
               projectsToDeleteIds.includes(project.sourceProjectId)
             ) {
-              // This project was linked to a project in the deleted team. Make it standalone.
-              remainingProjects[project.id] = {
-                ...project,
-                isLinkedCopy: false, // No longer a linked copy
-                sourceProjectId: undefined, // Remove link to source
-              }
+              remainingProjects[project.id] = { ...project, isLinkedCopy: false, sourceProjectId: undefined }
             }
           })
 
-          // Remove dependencies involving deleted projects
           const remainingDependencies = state.dependencies.filter(
             (dep) => !projectsToDeleteIds.includes(dep.sourceId) && !projectsToDeleteIds.includes(dep.targetId),
           )
-
-          // Remove the team
           const remainingTeams = state.teams.filter((team) => team.id !== id)
 
-          // Determine the next selected team
           let nextSelectedTeamId = state.selectedTeamId
-          if (state.selectedTeamId === id) {
+          let shouldNavigate = false
+          let navigationPath = "/global"
+
+          if (currentPathname && currentPathname === `/team/${id}`) {
+            shouldNavigate = true
             if (remainingTeams.length > 0) {
-              nextSelectedTeamId = remainingTeams[0].id // Select the first remaining team
+              navigationPath = `/team/${remainingTeams[0].id}`
+              nextSelectedTeamId = remainingTeams[0].id
             } else {
-              nextSelectedTeamId = null // No teams left
+              // navigationPath remains "/global"
+              nextSelectedTeamId = null
             }
+          } else if (state.selectedTeamId === id) {
+            // If selected team in store was deleted but not current view
+            nextSelectedTeamId = remainingTeams.length > 0 ? remainingTeams[0].id : null
+          }
+
+          if (shouldNavigate && navigate) {
+            navigate(navigationPath)
           }
 
           return {
@@ -175,7 +162,7 @@ export const useAppStore = create<AppState>()(
             projects: remainingProjects,
             dependencies: remainingDependencies,
             selectedTeamId: nextSelectedTeamId,
-            showGlobalView: remainingTeams.length === 0 ? false : state.showGlobalView, // If no teams, don't show global view
+            showGlobalView: nextSelectedTeamId === null, // if no teams left, maybe show global or welcome
             selectedProjectId: projectsToDeleteIds.includes(state.selectedProjectId || "")
               ? null
               : state.selectedProjectId,
@@ -184,24 +171,14 @@ export const useAppStore = create<AppState>()(
       },
 
       selectTeam: (id) => {
+        // This action might be called by TeamPage to sync store if needed
         set({ selectedTeamId: id, showGlobalView: false })
       },
 
-      // Project actions
       addProject: (teamId, title) => {
         const id = crypto.randomUUID()
-        const newProject: Project = {
-          id,
-          teamId,
-          title,
-          effort: null, // Start with empty effort
-          value: null, // Start with empty value
-        }
-
-        set((state) => ({
-          projects: { ...state.projects, [id]: newProject },
-        }))
-
+        const newProject: Project = { id, teamId, title, effort: null, value: null }
+        set((state) => ({ projects: { ...state.projects, [id]: newProject } }))
         return id
       },
 
@@ -209,11 +186,8 @@ export const useAppStore = create<AppState>()(
         set((state) => {
           const project = state.projects[id]
           if (!project) return state
-
           const updatedProject = { ...project, ...data }
           const updatedProjects = { ...state.projects, [id]: updatedProject }
-
-          // If this is the source project and title/value changed, update all linked copies
           if (!project.isLinkedCopy && (data.title !== undefined || data.value !== undefined)) {
             Object.values(state.projects).forEach((p) => {
               if (p.sourceProjectId === id) {
@@ -224,7 +198,6 @@ export const useAppStore = create<AppState>()(
               }
             })
           }
-
           return { projects: updatedProjects }
         })
       },
@@ -233,45 +206,28 @@ export const useAppStore = create<AppState>()(
         set((state) => {
           const project = state.projects[id]
           if (!project) return state
-
-          // Collect all projects to delete (original + all linked copies)
           const projectsToDelete = new Set([id])
-
-          // If deleting the original, find all its copies
           if (!project.isLinkedCopy) {
             Object.values(state.projects).forEach((p) => {
-              if (p.sourceProjectId === id) {
-                projectsToDelete.add(p.id)
-              }
+              if (p.sourceProjectId === id) projectsToDelete.add(p.id)
             })
           } else {
-            // If deleting a copy, also delete the original and all other copies
             const sourceId = project.sourceProjectId
             if (sourceId) {
               projectsToDelete.add(sourceId)
               Object.values(state.projects).forEach((p) => {
-                if (p.sourceProjectId === sourceId) {
-                  projectsToDelete.add(p.id)
-                }
+                if (p.sourceProjectId === sourceId) projectsToDelete.add(p.id)
               })
             }
           }
-
-          // Remove all projects to delete
           const remainingProjects = { ...state.projects }
-          projectsToDelete.forEach((projectId) => {
-            delete remainingProjects[projectId]
-          })
-
-          // Remove any dependencies involving deleted projects
+          projectsToDelete.forEach((projectId) => delete remainingProjects[projectId])
           const dependencies = state.dependencies.filter(
             (dep) => !projectsToDelete.has(dep.sourceId) && !projectsToDelete.has(dep.targetId),
           )
-
           return {
             projects: remainingProjects,
             dependencies,
-            // If any deleted project was selected, deselect it
             selectedProjectId: projectsToDelete.has(state.selectedProjectId || "") ? null : state.selectedProjectId,
           }
         })
@@ -284,9 +240,7 @@ export const useAppStore = create<AppState>()(
       duplicateProject: (id, targetTeamId) => {
         const { projects } = get()
         const sourceProject = projects[id]
-
         if (!sourceProject) return ""
-
         const newId = crypto.randomUUID()
         const newProject: Project = {
           id: newId,
@@ -295,51 +249,34 @@ export const useAppStore = create<AppState>()(
           effort: sourceProject.effort,
           value: sourceProject.value,
         }
-
-        set((state) => ({
-          projects: { ...state.projects, [newId]: newProject },
-        }))
-
+        set((state) => ({ projects: { ...state.projects, [newId]: newProject } }))
         return newId
       },
 
       duplicateProjectAsLinked: (id, targetTeamId) => {
         const { projects } = get()
         const sourceProject = projects[id]
-
         if (!sourceProject) return ""
-
         const newId = crypto.randomUUID()
-        const sourceId = sourceProject.sourceProjectId || id // If source is already a copy, link to the original
-
+        const sourceId = sourceProject.sourceProjectId || id
         const newProject: Project = {
           id: newId,
           teamId: targetTeamId,
-          title: sourceProject.title, // Use original name without suffix
-          effort: null, // Start with empty effort for the new team to estimate
-          value: sourceProject.value, // Keep the same business value
+          title: sourceProject.title,
+          effort: null,
+          value: sourceProject.value,
           sourceProjectId: sourceId,
           isLinkedCopy: true,
         }
-
-        set((state) => ({
-          projects: { ...state.projects, [newId]: newProject },
-        }))
-
+        set((state) => ({ projects: { ...state.projects, [newId]: newProject } }))
         return newId
       },
 
-      // Dependency actions
       addDependency: (sourceId, targetId) => {
-        // Don't add duplicate dependencies
         const { dependencies } = get()
         const exists = dependencies.some((dep) => dep.sourceId === sourceId && dep.targetId === targetId)
-
         if (exists) return
-
-        set((state) => ({
-          dependencies: [...state.dependencies, { sourceId, targetId }],
-        }))
+        set((state) => ({ dependencies: [...state.dependencies, { sourceId, targetId }] }))
       },
 
       removeDependency: (sourceId, targetId) => {
@@ -349,35 +286,23 @@ export const useAppStore = create<AppState>()(
       },
 
       checkForCyclicDependency: (sourceId, targetId) => {
-        // Check if adding a dependency from source to target would create a cycle
         const { dependencies } = get()
-
-        // Helper function to check if target can reach source through existing dependencies
         const canReach = (from: string, to: string, visited = new Set<string>()): boolean => {
           if (from === to) return true
           if (visited.has(from)) return false
-
           visited.add(from)
-
-          // Find all projects that depend on 'from'
           const dependents = dependencies.filter((dep) => dep.sourceId === from).map((dep) => dep.targetId)
-
-          // Check if any of these dependents can reach 'to'
           return dependents.some((dep) => canReach(dep, to, visited))
         }
-
-        // If target can already reach source, adding source -> target would create a cycle
         return canReach(targetId, sourceId)
       },
 
       getProjectDependencies: (projectId) => {
-        // Get all projects that this project depends on (prerequisites)
         const { dependencies } = get()
         return dependencies.filter((dep) => dep.targetId === projectId).map((dep) => dep.sourceId)
       },
 
       getProjectDependents: (projectId) => {
-        // Get all projects that depend on this project
         const { dependencies } = get()
         return dependencies.filter((dep) => dep.sourceId === projectId).map((dep) => dep.targetId)
       },
@@ -386,13 +311,16 @@ export const useAppStore = create<AppState>()(
         return get().dependencies
       },
 
-      // View actions
       setShowGlobalView: (show) => {
-        set({ showGlobalView: show, selectedTeamId: show ? null : get().selectedTeamId })
+        // This might be used for other UI purposes or deprecated
+        set({ showGlobalView: show })
       },
     }),
     {
       name: "team-prioritization-storage",
+      onRehydrateStorage: () => (state) => {
+        if (state) state.initialized = true
+      },
     },
   ),
 )

@@ -2,6 +2,8 @@ import type React from "react"
 import type { Metadata } from "next"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
+import { AppHeader } from "@/components/app-header" // Import AppHeader
+import { Toaster } from "@/components/ui/toaster" // Assuming you might want toasts for notifications
 
 export const metadata: Metadata = {
   title: "Team Prioritization",
@@ -22,9 +24,13 @@ export default function RootLayout({
           defaultTheme="system"
           enableSystem
           disableTransitionOnChange
-          suppressHydrationWarning
+          suppressHydrationWarning // Added to potentially help with ThemeProvider hydration warnings
         >
-          {children}
+          <div className="min-h-screen flex flex-col">
+            <AppHeader /> {/* AppHeader is now part of the layout */}
+            <main className="flex-1 container mx-auto p-4 md:p-6">{children}</main>
+            <Toaster />
+          </div>
         </ThemeProvider>
       </body>
     </html>
