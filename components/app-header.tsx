@@ -1,9 +1,9 @@
 "use client"
 
 import type React from "react"
-import { useState, useRef, useEffect } from "react" // Removed useCallback
+import { useState, useRef, useEffect, useMemo } from "react"
 import { useAppStore } from "@/lib/store"
-import type { ImportedJsonFile } from "@/lib/types"
+import type { ImportedJsonFile, Team } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -16,21 +16,23 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  SelectGroup, // Added SelectGroup for potential future use or structure
-} from "@/components/ui/select" // Replaced DropdownMenu imports
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { ModeToggle } from "@/components/mode-toggle"
-import { Plus, Upload } from "lucide-react" // Removed ChevronDown, ChevronUp
+import { Plus, Upload, ChevronsUpDown, Check } from "lucide-react"
 import Link from "next/link"
 import { useRouter, usePathname } from "next/navigation"
+import { cn } from "@/lib/utils"
+
+interface ViewSelectItem {
+  value: string
+  label: string
+  type: "team" | "global"
+}
 
 export function AppHeader() {
-  const { teams, addTeam, importData, initialized, initializeStore } = useAppStore()
+  const storeTeams = useAppStore((state) => state.teams)
+  const { addTeam, importData, initialized, initializeStore } = useAppStore()
   const router = useRouter()
   const pathname = usePathname()
 
@@ -42,19 +44,17 @@ export function AppHeader() {
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Removed DropdownMenu specific state and refs for scroll indicators
-  // const dropdownContentRef = useRef<HTMLDivElement>(null)
-  // const [showTopIndicator, setShowTopIndicator] = useState(false)
-  // const [showBottomIndicator, setShowBottomIndicator] = useState(false)
-  // const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+  const [comboboxOpen, setComboboxOpen] = useState(false)
+
+  const commandKey = useMemo(() => {
+    return storeTeams.map((team) => team.id).join(",") + `_len:${storeTeams.length}`
+  }, [storeTeams])
 
   useEffect(() => {
     if (!initialized) {
       initializeStore()
     }
   }, [initialized, initializeStore])
-
-  // Removed checkScrollIndicators and its related useEffect
 
   const handleAddTeam = () => {
     let hasError = false
@@ -130,7 +130,7 @@ export function AppHeader() {
     reader.readAsText(file)
   }
 
-  const getCurrentSelectedValue = () => {
+  const getCurrentComboboxValue = (): string => {
     if (pathname === "/global") {
       return "global"
     }
@@ -138,23 +138,20 @@ export function AppHeader() {
     if (teamPathMatch) {
       return teamPathMatch[1] // teamId
     }
-    // Attempt to select the first team if no specific path matches and teams exist
-    // This helps if landing on "/" which redirects to a team page or global
-    if (teams.length > 0 && pathname === "/") {
-      // Or a more specific condition for initial load
-      return teams[0].id
-    }
-    return undefined // Let SelectValue show placeholder if no match
+    return ""
   }
 
-  const handleViewSelectionChange = (value: string) => {
-    if (value === "global") {
-      router.push("/global")
-    } else if (value) {
-      // Assumes value is a teamId
-      router.push(`/team/${value}`)
-    }
-  }
+  const viewOptions: ViewSelectItem[] = [
+    ...storeTeams.map((team: Team) => ({
+      value: team.id,
+      label: team.name,
+      type: "team" as const,
+    })),
+    { value: "global", label: "Global View", type: "global" as const },
+  ]
+
+  const selectedViewDisplayLabel =
+    viewOptions.find((option) => option.value === getCurrentComboboxValue())?.label || "Select view..."
 
   if (!initialized) {
     return (
@@ -162,7 +159,7 @@ export function AppHeader() {
         <div className="container mx-auto p-4 flex items-center justify-between">
           <h1 className="text-xl font-bold">Team Prioritization</h1>
           <div className="flex items-center gap-4">
-            <div className="h-8 w-[180px] bg-muted rounded animate-pulse"></div> {/* Placeholder for select */}
+            <div className="h-10 w-[200px] bg-muted rounded animate-pulse"></div>
             <div className="h-8 w-24 bg-muted rounded animate-pulse"></div>
             <ModeToggle />
           </div>
@@ -181,52 +178,70 @@ export function AppHeader() {
         </div>
 
         <div className="flex items-center gap-4">
-          {teams.length > 0 || pathname === "/global" ? ( // Show select if teams exist or if on global view (to switch away)
-            <Select value={getCurrentSelectedValue()} onValueChange={handleViewSelectionChange}>
-              <SelectTrigger className="w-[180px] sm:w-[200px] md:w-[240px] min-w-0">
-                {" "}
-                {/* Added min-w-0 for better flex shrink */}
-                <SelectValue placeholder="Select view..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  {/* <SelectLabel>Teams</SelectLabel> // Optional label */}
-                  {teams.map((team) => (
-                    <SelectItem key={team.id} value={team.id}>
-                      {team.name}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-                {teams.length > 0 && ( // Separator equivalent for Select, often just a new group or visual spacing
-                  <SelectGroup className="border-t -mx-1 mt-1 pt-1">
-                    {/* Basic visual separator, adjust styling as needed */}
-                  </SelectGroup>
-                )}
-                <SelectGroup>
-                  {/* <SelectLabel>Other</SelectLabel> // Optional label */}
-                  <SelectItem value="global">Global View</SelectItem>
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          ) : (
-            // If no teams and not on global view (e.g. initial state before any team created)
-            // We might show a disabled placeholder or nothing, depending on desired UX
-            // For now, let's ensure "New Team" is always an option.
-            // The Select component might not render if teams array is empty and not on global.
-            // This logic ensures it appears if there's something to select or switch from.
-            // If teams.length is 0 and not on global, it means we are on "/" before redirection.
-            // In this case, the Select might not be useful until a team exists or user navigates to global.
-            // The placeholder in SelectValue handles the "Select view..." text.
-            // If teams.length === 0, the select will only show "Global View"
-            <Select value={getCurrentSelectedValue()} onValueChange={handleViewSelectionChange}>
-              <SelectTrigger className="w-[180px] sm:w-[200px] md:w-[240px] min-w-0">
-                <SelectValue placeholder="Select view..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="global">Global View</SelectItem>
-              </SelectContent>
-            </Select>
-          )}
+          <Popover open={comboboxOpen} onOpenChange={setComboboxOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                aria-expanded={comboboxOpen}
+                className="w-[200px] justify-between"
+              >
+                <span className="truncate">{selectedViewDisplayLabel}</span>
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[200px] p-0">
+              <Command key={commandKey}>
+                <CommandInput placeholder="Search view..." />
+                <CommandList>
+                  <CommandEmpty>No view found.</CommandEmpty>
+                  {storeTeams.length > 0 && (
+                    <CommandGroup heading="Teams">
+                      {storeTeams.map((team) => (
+                        <CommandItem
+                          key={team.id}
+                          value={team.id} // This is the actual value for onSelect
+                          keywords={[team.name]} // Add team.name here for explicit searching
+                          onSelect={(currentValue) => {
+                            // currentValue will be team.id
+                            router.push(`/team/${currentValue}`)
+                            setComboboxOpen(false)
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              getCurrentComboboxValue() === team.id ? "opacity-100" : "opacity-0",
+                            )}
+                          />
+                          {team.name} {/* This is the display text and also implicit search text */}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  )}
+                  <CommandGroup heading={storeTeams.length > 0 ? "Other" : undefined}>
+                    <CommandItem
+                      key="global"
+                      value="global"
+                      keywords={["Global View", "Overall"]} // Can add keywords for global too
+                      onSelect={() => {
+                        router.push("/global")
+                        setComboboxOpen(false)
+                      }}
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          getCurrentComboboxValue() === "global" ? "opacity-100" : "opacity-0",
+                        )}
+                      />
+                      Global View
+                    </CommandItem>
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
 
           <Dialog open={createTeamDialogOpen} onOpenChange={setCreateTeamDialogOpen}>
             <DialogTrigger asChild>

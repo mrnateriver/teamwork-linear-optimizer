@@ -1,46 +1,59 @@
 "use client"
 
-import { useMemo, useState, useEffect } from "react" // Added useEffect
+import { useMemo, useState, useEffect } from "react"
 import { useAppStore } from "@/lib/store"
 import { prioritizeProjects } from "@/lib/prioritization"
-import type { Project, Team, Dependency } from "@/lib/types" // Added Team, Dependency
+import type { Project, Team, Dependency } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Download, Network, Circle } from "lucide-react"
+import { Download, Network, Circle, ChevronsUpDown, Check } from "lucide-react" // Added ChevronsUpDown, Check
 import { DependencyDrawer } from "@/components/dependency-drawer"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+// Removed Select imports, added Popover and Command imports
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
+import { cn } from "@/lib/utils"
 
-const DEBOUNCE_DELAY = 500 // 500ms
+const DEBOUNCE_DELAY = 500
+
+interface FilterOption {
+  value: string
+  label: string
+  keywords?: string[]
+}
 
 export function GlobalView() {
   const storeProjects = useAppStore((state) => state.projects)
   const storeTeams = useAppStore((state) => state.teams)
-  const getDependencies = useAppStore((state) => state.getDependencies) // Added to fetch all dependencies
+  const getDependencies = useAppStore((state) => state.getDependencies)
   const selectProject = useAppStore((state) => state.selectProject)
 
   const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>("all")
+  const [filterComboboxOpen, setFilterComboboxOpen] = useState(false)
 
-  // State for debounced data
   const [debouncedInputs, setDebouncedInputs] = useState<{
     projects: Record<string, Project>
     teams: Team[]
-    dependencies: Dependency[] // Added dependencies
+    dependencies: Dependency[]
   }>({
     projects: storeProjects,
     teams: storeTeams,
-    dependencies: getDependencies(), // Initialize with all dependencies
+    dependencies: getDependencies(),
   })
 
-  // Effect to debounce inputs
+  // Key for the filter Command component to ensure re-initialization on data change
+  const filterCommandKey = useMemo(() => {
+    return storeTeams.map((team) => team.id).join(",") + `_len:${storeTeams.length}`
+  }, [storeTeams])
+
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedInputs({
         projects: storeProjects,
         teams: storeTeams,
-        dependencies: getDependencies(), // Update with latest dependencies
+        dependencies: getDependencies(),
       })
     }, DEBOUNCE_DELAY)
 
@@ -49,7 +62,6 @@ export function GlobalView() {
     }
   }, [storeProjects, storeTeams, getDependencies])
 
-  // Calculate prioritized projects with team filter using debounced inputs
   const { selectedProjects, unselectedProjects, teamSummaries } = useMemo(() => {
     const allProjectsArray = Object.values(debouncedInputs.projects)
     const filteredProjectsForPrioritization =
@@ -62,18 +74,15 @@ export function GlobalView() {
         ? debouncedInputs.teams
         : debouncedInputs.teams.filter((team) => team.id === selectedTeamFilter)
 
-    // Pass all dependencies to prioritizeProjects for a truly global view
     return prioritizeProjects(filteredProjectsForPrioritization, teamsForPrioritization, debouncedInputs.dependencies)
   }, [debouncedInputs, selectedTeamFilter])
 
-  // Calculate overall capacity utilization
   const overallUtilization = useMemo(() => {
     const totalCapacity = debouncedInputs.teams.reduce((sum, team) => sum + team.capacity, 0)
     const totalAllocated = debouncedInputs.teams.reduce((sum, team) => {
       const summary = teamSummaries[team.id] || { allocated: 0, value: 0 }
       return sum + summary.allocated
     }, 0)
-
     return totalCapacity > 0 ? (totalAllocated / totalCapacity) * 100 : 0
   }, [debouncedInputs.teams, teamSummaries])
 
@@ -81,7 +90,6 @@ export function GlobalView() {
     selectProject(project.id)
   }
 
-  // Function to get utilization color
   const getUtilizationColor = (allocated: number, capacity: number) => {
     if (capacity === 0) return "text-gray-400"
     const utilization = (allocated / capacity) * 100
@@ -90,10 +98,8 @@ export function GlobalView() {
     return "text-red-500"
   }
 
-  // Function to export prioritized projects to CSV
   const exportToCSV = () => {
     if (selectedProjects.length === 0) return
-
     const headers = ["Project", "Team", "Effort", "Value", "Value/Effort Ratio"]
     const rows = selectedProjects.map((project) => {
       const team = debouncedInputs.teams.find((t) => t.id === project.teamId)?.name || "Unknown"
@@ -120,28 +126,75 @@ export function GlobalView() {
       ? debouncedInputs.teams
       : debouncedInputs.teams.filter((team) => team.id === selectedTeamFilter)
 
+  const teamFilterOptions: FilterOption[] = useMemo(
+    () => [
+      { value: "all", label: "All Teams", keywords: ["all", "everyone", "overall"] },
+      ...storeTeams.map((team) => ({
+        value: team.id,
+        label: team.name,
+        keywords: [team.name],
+      })),
+    ],
+    [storeTeams],
+  )
+
+  const selectedFilterDisplayLabel =
+    teamFilterOptions.find((option) => option.value === selectedTeamFilter)?.label || "Filter by team..."
+
   return (
     <div className="space-y-8">
       <div>
         <h2 className="text-3xl font-bold mb-6">Global Prioritization</h2>
 
         <div className="flex items-center gap-4 mb-6">
-          <label htmlFor="team-filter" className="text-sm font-medium">
+          <label htmlFor="team-filter-combobox" className="text-sm font-medium shrink-0">
             Filter by Team:
           </label>
-          <Select value={selectedTeamFilter} onValueChange={setSelectedTeamFilter}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="All teams" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Teams</SelectItem>
-              {debouncedInputs.teams.map((team) => (
-                <SelectItem key={team.id} value={team.id}>
-                  {team.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Popover open={filterComboboxOpen} onOpenChange={setFilterComboboxOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                aria-expanded={filterComboboxOpen}
+                className="w-[200px] justify-between"
+                id="team-filter-combobox"
+              >
+                <span className="truncate">{selectedFilterDisplayLabel}</span>
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[200px] p-0">
+              <Command key={filterCommandKey}>
+                {" "}
+                {/* Key for re-initialization */}
+                <CommandInput placeholder="Search team..." />
+                <CommandList>
+                  <CommandEmpty>No team found.</CommandEmpty>
+                  <CommandGroup>
+                    {teamFilterOptions.map((option) => (
+                      <CommandItem
+                        key={option.value}
+                        value={option.value} // Actual value for onSelect
+                        keywords={option.keywords} // Keywords for searching
+                        onSelect={(currentValue) => {
+                          setSelectedTeamFilter(currentValue)
+                          setFilterComboboxOpen(false)
+                        }}
+                      >
+                        <Check
+                          className={cn(
+                            "mr-2 h-4 w-4",
+                            selectedTeamFilter === option.value ? "opacity-100" : "opacity-0",
+                          )}
+                        />
+                        {option.label}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
         </div>
 
         <div className="space-y-8">
@@ -167,10 +220,16 @@ export function GlobalView() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {displayTeams.length === 0 ? (
+                  {displayTeams.length === 0 && selectedTeamFilter === "all" ? (
                     <TableRow>
                       <TableCell colSpan={5} className="text-center py-6 text-muted-foreground">
                         No teams created yet.
+                      </TableCell>
+                    </TableRow>
+                  ) : displayTeams.length === 0 && selectedTeamFilter !== "all" ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-6 text-muted-foreground">
+                        Team not found or has no data.
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -205,7 +264,6 @@ export function GlobalView() {
 
           <div>
             <h3 className="text-xl font-semibold mb-4">Prioritized Projects</h3>
-
             <div className="border rounded-md">
               <Table>
                 <TableHeader>
@@ -221,7 +279,7 @@ export function GlobalView() {
                   {selectedProjects.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={5} className="text-center py-6 text-muted-foreground">
-                        No projects selected. Add projects and set team capacities.
+                        No projects selected. Add projects and set team capacities, or adjust filters.
                       </TableCell>
                     </TableRow>
                   ) : (
