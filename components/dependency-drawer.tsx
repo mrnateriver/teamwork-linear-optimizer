@@ -1,6 +1,6 @@
-"use client"
+"use client";
 
-import { useCallback, useEffect, useState, useMemo } from "react"
+import { useCallback, useEffect, useState, useMemo } from "react";
 import ReactFlow, {
   Background,
   Controls,
@@ -11,36 +11,63 @@ import ReactFlow, {
   useNodesState,
   ReactFlowProvider,
   MarkerType,
-} from "reactflow"
-import "reactflow/dist/style.css"
-import { useAppStore } from "@/lib/store"
-import { ProjectNode } from "@/components/project-node"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Separator } from "@/components/ui/separator"
-import { Plus, Link, ArrowRight } from "lucide-react"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+} from "reactflow";
+import "reactflow/dist/style.css";
+import { useAppStore } from "@/lib/store";
+import { ProjectNode } from "@/components/project-node";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Separator } from "@/components/ui/separator";
+import { Plus, Link, ArrowRight } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 const nodeTypes: NodeTypes = {
   project: ProjectNode,
-}
+};
 
-function DependencyGraph({ selectedProjectId }: { selectedProjectId: string | null }) {
-  const { projects, teams, getProjectDependencies, getProjectDependents, dependencies } = useAppStore()
-  const [nodes, setNodes, onNodesChange] = useNodesState([])
-  const [edges, setEdges, onEdgesChange] = useEdgesState([])
+function DependencyGraph({
+  selectedProjectId,
+}: {
+  selectedProjectId: string | null;
+}) {
+  const {
+    projects,
+    teams,
+    getProjectDependencies,
+    getProjectDependents,
+    dependencies,
+  } = useAppStore();
+  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
   useEffect(() => {
-    if (!selectedProjectId) return
+    if (!selectedProjectId) return;
 
-    const project = projects[selectedProjectId]
-    if (!project) return
+    const project = projects[selectedProjectId];
+    if (!project) return;
 
-    const projectDependencies = getProjectDependencies(selectedProjectId)
-    const dependents = getProjectDependents(selectedProjectId)
+    const projectDependencies = getProjectDependencies(selectedProjectId);
+    const dependents = getProjectDependents(selectedProjectId);
 
     const graphNodes: Node[] = [
       {
@@ -53,10 +80,10 @@ function DependencyGraph({ selectedProjectId }: { selectedProjectId: string | nu
         },
         position: { x: 250, y: 150 },
       },
-    ]
+    ];
 
     projectDependencies.forEach((depId, index) => {
-      const depProject = projects[depId]
+      const depProject = projects[depId];
       if (depProject) {
         graphNodes.push({
           id: depProject.id,
@@ -67,12 +94,12 @@ function DependencyGraph({ selectedProjectId }: { selectedProjectId: string | nu
             isPrerequisite: true,
           },
           position: { x: 50, y: 50 + index * 100 },
-        })
+        });
       }
-    })
+    });
 
     dependents.forEach((depId, index) => {
-      const depProject = projects[depId]
+      const depProject = projects[depId];
       if (depProject) {
         graphNodes.push({
           id: depProject.id,
@@ -83,11 +110,11 @@ function DependencyGraph({ selectedProjectId }: { selectedProjectId: string | nu
             isDependent: true,
           },
           position: { x: 450, y: 50 + index * 100 },
-        })
+        });
       }
-    })
+    });
 
-    const graphEdges: Edge[] = []
+    const graphEdges: Edge[] = [];
     projectDependencies.forEach((depId) => {
       graphEdges.push({
         id: `${depId}-${project.id}`,
@@ -101,8 +128,8 @@ function DependencyGraph({ selectedProjectId }: { selectedProjectId: string | nu
           height: 20,
           color: "#888",
         },
-      })
-    })
+      });
+    });
 
     dependents.forEach((depId) => {
       graphEdges.push({
@@ -117,12 +144,19 @@ function DependencyGraph({ selectedProjectId }: { selectedProjectId: string | nu
           height: 20,
           color: "#888",
         },
-      })
-    })
+      });
+    });
 
-    setNodes(graphNodes)
-    setEdges(graphEdges)
-  }, [selectedProjectId, projects, teams, getProjectDependencies, getProjectDependents, dependencies])
+    setNodes(graphNodes);
+    setEdges(graphEdges);
+  }, [
+    selectedProjectId,
+    projects,
+    teams,
+    getProjectDependencies,
+    getProjectDependents,
+    dependencies,
+  ]);
 
   return (
     <ReactFlow
@@ -136,7 +170,7 @@ function DependencyGraph({ selectedProjectId }: { selectedProjectId: string | nu
       <Background />
       <Controls />
     </ReactFlow>
-  )
+  );
 }
 
 export function DependencyDrawer() {
@@ -151,104 +185,163 @@ export function DependencyDrawer() {
     checkForCyclicDependency,
     getProjectDependencies,
     showGlobalView,
-  } = useAppStore()
+  } = useAppStore();
 
-  const [selectedTeamIdForLink, setSelectedTeamIdForLink] = useState<string>("") // Renamed for clarity
-  const [showAdvancedOptions, setShowAdvancedOptions] = useState<string | null>(null)
-  const [targetProjectIdForExistingLink, setTargetProjectIdForExistingLink] = useState<string>("") // Renamed
-  const [newProjectTitleForNewLink, setNewProjectTitleForNewLink] = useState("") // Renamed
-  const [error, setError] = useState<string | null>(null)
+  const [selectedTeamIdForLink, setSelectedTeamIdForLink] =
+    useState<string>(""); // Renamed for clarity
+  const [showAdvancedOptions, setShowAdvancedOptions] = useState<string | null>(
+    null,
+  );
+  const [targetProjectIdForExistingLink, setTargetProjectIdForExistingLink] =
+    useState<string>(""); // Renamed
+  const [newProjectTitleForNewLink, setNewProjectTitleForNewLink] =
+    useState(""); // Renamed
+  const [error, setError] = useState<string | null>(null);
 
-  const selectedProject = selectedProjectId ? projects[selectedProjectId] : null
+  const selectedProject = selectedProjectId
+    ? projects[selectedProjectId]
+    : null;
 
-  const currentDependencies = selectedProjectId ? getProjectDependencies(selectedProjectId) : []
+  const currentDependencies = selectedProjectId
+    ? getProjectDependencies(selectedProjectId)
+    : [];
 
   const selectedTeamProjectsForExistingLink = Object.values(projects).filter(
     (project) =>
       project.teamId === selectedTeamIdForLink &&
       !currentDependencies.includes(project.id) &&
       project.id !== selectedProjectId,
-  )
+  );
 
-  const isReadonly = showGlobalView
+  const isReadonly = showGlobalView;
 
   useEffect(() => {
     if (!selectedProjectId) {
-      setSelectedTeamIdForLink("")
-      setShowAdvancedOptions(null)
-      setTargetProjectIdForExistingLink("")
-      setNewProjectTitleForNewLink("")
-      setError(null)
+      setSelectedTeamIdForLink("");
+      setShowAdvancedOptions(null);
+      setTargetProjectIdForExistingLink("");
+      setNewProjectTitleForNewLink("");
+      setError(null);
     }
-  }, [selectedProjectId])
+  }, [selectedProjectId]);
 
   const linkedCopyExistsInTargetTeam = useMemo(() => {
-    if (!selectedProjectId || !selectedTeamIdForLink) return false
+    if (!selectedProjectId || !selectedTeamIdForLink) return false;
     return Object.values(projects).some(
-      (p) => p.teamId === selectedTeamIdForLink && p.isLinkedCopy && p.sourceProjectId === selectedProjectId,
-    )
-  }, [projects, selectedProjectId, selectedTeamIdForLink])
+      (p) =>
+        p.teamId === selectedTeamIdForLink &&
+        p.isLinkedCopy &&
+        p.sourceProjectId === selectedProjectId,
+    );
+  }, [projects, selectedProjectId, selectedTeamIdForLink]);
 
   const handleLinkToTeamDefault = useCallback(() => {
-    if (!selectedProjectId || !selectedTeamIdForLink || !selectedProject || isReadonly) return
-    setError(null)
+    if (
+      !selectedProjectId ||
+      !selectedTeamIdForLink ||
+      !selectedProject ||
+      isReadonly
+    )
+      return;
+    setError(null);
 
     if (selectedTeamIdForLink === selectedProject.teamId) {
       setError(
         "Cannot link to the same team using this option. Use 'Link to existing project' or 'Create new project'.",
-      )
-      return
+      );
+      return;
     }
 
-    const newLinkedProjectId = duplicateProjectAsLinked(selectedProjectId, selectedTeamIdForLink)
-    addDependency(newLinkedProjectId, selectedProjectId)
+    const newLinkedProjectId = duplicateProjectAsLinked(
+      selectedProjectId,
+      selectedTeamIdForLink,
+    );
+    addDependency(newLinkedProjectId, selectedProjectId);
 
-    setSelectedTeamIdForLink("")
-    setShowAdvancedOptions(null)
-  }, [selectedProjectId, selectedTeamIdForLink, selectedProject, duplicateProjectAsLinked, addDependency, isReadonly])
+    setSelectedTeamIdForLink("");
+    setShowAdvancedOptions(null);
+  }, [
+    selectedProjectId,
+    selectedTeamIdForLink,
+    selectedProject,
+    duplicateProjectAsLinked,
+    addDependency,
+    isReadonly,
+  ]);
 
   const handleLinkToExistingProject = useCallback(() => {
-    if (!selectedProjectId || !targetProjectIdForExistingLink || isReadonly) return
-    setError(null)
+    if (!selectedProjectId || !targetProjectIdForExistingLink || isReadonly)
+      return;
+    setError(null);
 
-    if (checkForCyclicDependency(targetProjectIdForExistingLink, selectedProjectId)) {
-      setError("Cannot create a circular dependency")
-      return
+    if (
+      checkForCyclicDependency(
+        targetProjectIdForExistingLink,
+        selectedProjectId,
+      )
+    ) {
+      setError("Cannot create a circular dependency");
+      return;
     }
-    addDependency(targetProjectIdForExistingLink, selectedProjectId)
-    setTargetProjectIdForExistingLink("")
-    setShowAdvancedOptions(null)
-  }, [selectedProjectId, targetProjectIdForExistingLink, addDependency, checkForCyclicDependency, isReadonly])
+    addDependency(targetProjectIdForExistingLink, selectedProjectId);
+    setTargetProjectIdForExistingLink("");
+    setShowAdvancedOptions(null);
+  }, [
+    selectedProjectId,
+    targetProjectIdForExistingLink,
+    addDependency,
+    checkForCyclicDependency,
+    isReadonly,
+  ]);
 
   const handleCreateNewProjectAndLink = useCallback(() => {
-    if (!selectedProjectId || !selectedTeamIdForLink || !newProjectTitleForNewLink.trim() || isReadonly) return
-    setError(null)
+    if (
+      !selectedProjectId ||
+      !selectedTeamIdForLink ||
+      !newProjectTitleForNewLink.trim() ||
+      isReadonly
+    )
+      return;
+    setError(null);
 
-    const newProjectId = addProject(selectedTeamIdForLink, newProjectTitleForNewLink.trim())
-    addDependency(newProjectId, selectedProjectId)
+    const newProjectId = addProject(
+      selectedTeamIdForLink,
+      newProjectTitleForNewLink.trim(),
+    );
+    addDependency(newProjectId, selectedProjectId);
 
-    setNewProjectTitleForNewLink("")
-    setShowAdvancedOptions(null)
-  }, [selectedProjectId, selectedTeamIdForLink, newProjectTitleForNewLink, addProject, addDependency, isReadonly])
+    setNewProjectTitleForNewLink("");
+    setShowAdvancedOptions(null);
+  }, [
+    selectedProjectId,
+    selectedTeamIdForLink,
+    newProjectTitleForNewLink,
+    addProject,
+    addDependency,
+    isReadonly,
+  ]);
 
   const resetAdvancedOptions = () => {
-    setShowAdvancedOptions(null)
-    setTargetProjectIdForExistingLink("")
-    setNewProjectTitleForNewLink("")
-    setError(null)
-  }
+    setShowAdvancedOptions(null);
+    setTargetProjectIdForExistingLink("");
+    setNewProjectTitleForNewLink("");
+    setError(null);
+  };
 
-  if (!selectedProject) return null
-
-  const isSameTeamSelectedForLink = selectedTeamIdForLink === selectedProject.teamId
+  if (!selectedProject) return null;
 
   return (
-    <Sheet open={!!selectedProjectId} onOpenChange={(open) => !open && selectProject(null)}>
+    <Sheet
+      open={!!selectedProjectId}
+      onOpenChange={(open) => !open && selectProject(null)}
+    >
       <SheetContent className="sm:max-w-xl md:max-w-2xl overflow-y-auto">
         <SheetHeader className="mb-4">
           <SheetTitle>Dependencies: {selectedProject.title}</SheetTitle>
           <SheetDescription>
-            {isReadonly ? "View project dependencies" : "Manage dependencies between projects"}
+            {isReadonly
+              ? "View project dependencies"
+              : "Manage dependencies between projects"}
           </SheetDescription>
         </SheetHeader>
 
@@ -267,14 +360,19 @@ export function DependencyDrawer() {
         <div className="space-y-6">
           {!isReadonly && (
             <div>
-              <h3 className="text-lg font-semibold mb-3">Add Project Dependencies</h3>
+              <h3 className="text-lg font-semibold mb-3">
+                Add Project Dependencies
+              </h3>
               <p className="text-sm text-muted-foreground mb-4">
-                Select a team to add dependencies from. You can create dependencies within the same team or across
-                different teams.
+                Select a team to add dependencies from. You can create
+                dependencies within the same team or across different teams.
               </p>
 
               <div className="space-y-4">
-                <Select value={selectedTeamIdForLink} onValueChange={setSelectedTeamIdForLink}>
+                <Select
+                  value={selectedTeamIdForLink}
+                  onValueChange={setSelectedTeamIdForLink}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select a team" />
                   </SelectTrigger>
@@ -283,7 +381,9 @@ export function DependencyDrawer() {
                       <SelectItem key={team.id} value={team.id}>
                         {team.name}
                         {team.id === selectedProject.teamId && (
-                          <span className="ml-2 text-muted-foreground">(Current Team)</span>
+                          <span className="ml-2 text-muted-foreground">
+                            (Current Team)
+                          </span>
                         )}
                       </SelectItem>
                     ))}
@@ -293,7 +393,9 @@ export function DependencyDrawer() {
                 {selectedTeamIdForLink && (
                   <div className="space-y-3">
                     <TooltipProvider>
-                      <Tooltip open={linkedCopyExistsInTargetTeam ? undefined : false}>
+                      <Tooltip
+                        open={linkedCopyExistsInTargetTeam ? undefined : false}
+                      >
                         <TooltipTrigger asChild>
                           {/* The Button component itself needs to be wrapped for TooltipTrigger when disabled */}
                           <span tabIndex={0}>
@@ -306,15 +408,26 @@ export function DependencyDrawer() {
                               aria-disabled={linkedCopyExistsInTargetTeam} // For accessibility
                             >
                               <ArrowRight className="h-4 w-4" />
-                              Link to {teams.find((t) => t.id === selectedTeamIdForLink)?.name}
+                              Link to{" "}
+                              {
+                                teams.find(
+                                  (t) => t.id === selectedTeamIdForLink,
+                                )?.name
+                              }
                             </Button>
                           </span>
                         </TooltipTrigger>
                         {linkedCopyExistsInTargetTeam && (
                           <TooltipContent>
                             <p>
-                              A linked copy of "{selectedProject.title}" already exists in{" "}
-                              {teams.find((t) => t.id === selectedTeamIdForLink)?.name}.
+                              A linked copy of "{selectedProject.title}" already
+                              exists in{" "}
+                              {
+                                teams.find(
+                                  (t) => t.id === selectedTeamIdForLink,
+                                )?.name
+                              }
+                              .
                             </p>
                           </TooltipContent>
                         )}
@@ -325,7 +438,13 @@ export function DependencyDrawer() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setShowAdvancedOptions(showAdvancedOptions === "existing" ? null : "existing")}
+                        onClick={() =>
+                          setShowAdvancedOptions(
+                            showAdvancedOptions === "existing"
+                              ? null
+                              : "existing",
+                          )
+                        }
                         className="flex items-center gap-1"
                       >
                         <Link className="h-4 w-4" />
@@ -334,7 +453,11 @@ export function DependencyDrawer() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setShowAdvancedOptions(showAdvancedOptions === "new" ? null : "new")}
+                        onClick={() =>
+                          setShowAdvancedOptions(
+                            showAdvancedOptions === "new" ? null : "new",
+                          )
+                        }
                         className="flex items-center gap-1"
                       >
                         <Plus className="h-4 w-4" />
@@ -345,7 +468,11 @@ export function DependencyDrawer() {
                     {showAdvancedOptions === "existing" && (
                       <div className="border rounded-md p-4 space-y-3">
                         <h4 className="font-medium">
-                          Link to Existing Project in {teams.find((t) => t.id === selectedTeamIdForLink)?.name}
+                          Link to Existing Project in{" "}
+                          {
+                            teams.find((t) => t.id === selectedTeamIdForLink)
+                              ?.name
+                          }
                         </h4>
                         <Select
                           value={targetProjectIdForExistingLink}
@@ -356,11 +483,16 @@ export function DependencyDrawer() {
                           </SelectTrigger>
                           <SelectContent>
                             {selectedTeamProjectsForExistingLink.length > 0 ? (
-                              selectedTeamProjectsForExistingLink.map((project) => (
-                                <SelectItem key={project.id} value={project.id}>
-                                  {project.title}
-                                </SelectItem>
-                              ))
+                              selectedTeamProjectsForExistingLink.map(
+                                (project) => (
+                                  <SelectItem
+                                    key={project.id}
+                                    value={project.id}
+                                  >
+                                    {project.title}
+                                  </SelectItem>
+                                ),
+                              )
                             ) : (
                               <SelectItem value="none" disabled>
                                 No available projects to link in this team
@@ -376,7 +508,11 @@ export function DependencyDrawer() {
                           >
                             Link Project
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={resetAdvancedOptions}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={resetAdvancedOptions}
+                          >
                             Cancel
                           </Button>
                         </div>
@@ -386,12 +522,18 @@ export function DependencyDrawer() {
                     {showAdvancedOptions === "new" && (
                       <div className="border rounded-md p-4 space-y-3">
                         <h4 className="font-medium">
-                          Create New Project in {teams.find((t) => t.id === selectedTeamIdForLink)?.name}
+                          Create New Project in{" "}
+                          {
+                            teams.find((t) => t.id === selectedTeamIdForLink)
+                              ?.name
+                          }
                         </h4>
                         <Input
                           placeholder="New project title"
                           value={newProjectTitleForNewLink}
-                          onChange={(e) => setNewProjectTitleForNewLink(e.target.value)}
+                          onChange={(e) =>
+                            setNewProjectTitleForNewLink(e.target.value)
+                          }
                         />
                         <div className="flex gap-2">
                           <Button
@@ -401,7 +543,11 @@ export function DependencyDrawer() {
                           >
                             Create & Link
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={resetAdvancedOptions}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={resetAdvancedOptions}
+                          >
                             Cancel
                           </Button>
                         </div>
@@ -430,11 +576,14 @@ export function DependencyDrawer() {
                 <div className="w-3 h-3 rounded-full bg-green-400"></div>
                 <span>Projects that depend on this</span>
               </div>
-              <p className="mt-2">Arrows indicate dependency direction (A → B means A must be completed before B)</p>
+              <p className="mt-2">
+                Arrows indicate dependency direction (A → B means A must be
+                completed before B)
+              </p>
             </div>
           </div>
         </div>
       </SheetContent>
     </Sheet>
-  )
+  );
 }

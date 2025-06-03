@@ -1,17 +1,17 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { useAppStore } from "@/lib/store"
-import { ProjectList } from "@/components/project-list"
+import { useState, useEffect } from "react";
+import { useAppStore } from "@/lib/store";
+import { ProjectList } from "@/components/project-list";
 // DependencyDrawer is now rendered at the page level (e.g. app/team/[teamId]/page.tsx)
 // import { DependencyDrawer } from "@/components/dependency-drawer"
-import { TeamPrioritizationPanel } from "@/components/team-prioritization-panel"
-import { TeamDependencyGraph } from "@/components/team-dependency-graph"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { TeamPrioritizationPanel } from "@/components/team-prioritization-panel";
+import { TeamDependencyGraph } from "@/components/team-dependency-graph";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -19,7 +19,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
+} from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,81 +29,86 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import { Edit, Trash2 } from "lucide-react"
-import { useRouter, usePathname } from "next/navigation" // For navigation on delete
+} from "@/components/ui/alert-dialog";
+import { Edit, Trash2 } from "lucide-react";
+import { useRouter, usePathname } from "next/navigation"; // For navigation on delete
 
 interface TeamDashboardProps {
-  teamId: string // Passed from dynamic route params
+  teamId: string; // Passed from dynamic route params
 }
 
 export function TeamDashboard({ teamId }: TeamDashboardProps) {
-  const { teams, updateTeamCapacity, updateTeamName, deleteTeam: deleteTeamFromStore } = useAppStore()
-  const team = teams.find((t) => t.id === teamId)
-  const [activeTab, setActiveTab] = useState("projects")
+  const {
+    teams,
+    updateTeamCapacity,
+    updateTeamName,
+    deleteTeam: deleteTeamFromStore,
+  } = useAppStore();
+  const team = teams.find((t) => t.id === teamId);
+  const [activeTab, setActiveTab] = useState("projects");
 
-  const router = useRouter()
-  const pathname = usePathname()
+  const router = useRouter();
+  const pathname = usePathname();
 
-  const [editTeamName, setEditTeamName] = useState("")
-  const [editTeamCapacity, setEditTeamCapacity] = useState<number | string>(0)
-  const [editTeamDialogOpen, setEditTeamDialogOpen] = useState(false)
-  const [editTeamNameError, setEditTeamNameError] = useState("")
-  const [editTeamCapacityError, setEditTeamCapacityError] = useState("")
+  const [editTeamName, setEditTeamName] = useState("");
+  const [editTeamCapacity, setEditTeamCapacity] = useState<number | string>(0);
+  const [editTeamDialogOpen, setEditTeamDialogOpen] = useState(false);
+  const [editTeamNameError, setEditTeamNameError] = useState("");
+  const [editTeamCapacityError, setEditTeamCapacityError] = useState("");
 
-  const [deleteTeamDialogOpen, setDeleteTeamDialogOpen] = useState(false)
+  const [deleteTeamDialogOpen, setDeleteTeamDialogOpen] = useState(false);
 
   useEffect(() => {
     if (team) {
-      setEditTeamName(team.name)
-      setEditTeamCapacity(team.capacity)
+      setEditTeamName(team.name);
+      setEditTeamCapacity(team.capacity);
     } else {
       // If team is not found (e.g., after deletion and before redirect, or invalid ID)
       // This component might unmount before this is an issue due to page-level redirect
     }
-  }, [team])
+  }, [team]);
 
   if (!team) {
     // This case should ideally be handled by the page component redirecting
-    return <div>Team not found. You might be redirected shortly.</div>
+    return <div>Team not found. You might be redirected shortly.</div>;
   }
 
   const handleOpenEditTeamDialog = () => {
-    setEditTeamName(team.name)
-    setEditTeamCapacity(team.capacity)
-    setEditTeamNameError("")
-    setEditTeamCapacityError("")
-    setEditTeamDialogOpen(true)
-  }
+    setEditTeamName(team.name);
+    setEditTeamCapacity(team.capacity);
+    setEditTeamNameError("");
+    setEditTeamCapacityError("");
+    setEditTeamDialogOpen(true);
+  };
 
   const handleEditTeam = () => {
-    let hasError = false
+    let hasError = false;
     if (!editTeamName.trim()) {
-      setEditTeamNameError("Team name cannot be empty")
-      hasError = true
+      setEditTeamNameError("Team name cannot be empty");
+      hasError = true;
     }
-    const capacityValue = Number(editTeamCapacity)
+    const capacityValue = Number(editTeamCapacity);
     if (isNaN(capacityValue) || capacityValue < 0) {
-      setEditTeamCapacityError("Capacity must be a non-negative number")
-      hasError = true
+      setEditTeamCapacityError("Capacity must be a non-negative number");
+      hasError = true;
     }
 
-    if (hasError) return
+    if (hasError) return;
 
     if (team.name !== editTeamName.trim()) {
-      updateTeamName(teamId, editTeamName.trim())
+      updateTeamName(teamId, editTeamName.trim());
     }
     if (team.capacity !== capacityValue) {
-      updateTeamCapacity(teamId, capacityValue)
+      updateTeamCapacity(teamId, capacityValue);
     }
-    setEditTeamDialogOpen(false)
-  }
+    setEditTeamDialogOpen(false);
+  };
 
   const handleDeleteTeam = () => {
-    deleteTeamFromStore(teamId, pathname, router.replace)
-    setDeleteTeamDialogOpen(false)
+    deleteTeamFromStore(teamId, pathname, router.replace);
+    setDeleteTeamDialogOpen(false);
     // Navigation will be handled by the deleteTeam store action
-  }
+  };
 
   return (
     <div className="space-y-6">
@@ -111,7 +116,12 @@ export function TeamDashboard({ teamId }: TeamDashboardProps) {
         <div className="flex flex-col">
           <div className="flex items-center gap-2">
             <h2 className="text-3xl font-bold">{team.name}</h2>
-            <Button variant="ghost" size="icon" onClick={handleOpenEditTeamDialog} title="Edit team details">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleOpenEditTeamDialog}
+              title="Edit team details"
+            >
               <Edit className="h-5 w-5" />
             </Button>
             <Button
@@ -147,15 +157,14 @@ export function TeamDashboard({ teamId }: TeamDashboardProps) {
         </TabsContent>
       </Tabs>
 
-      {/* DependencyDrawer is now rendered at the page level */}
-      {/* <DependencyDrawer /> */}
-
       {/* Edit Team Dialog */}
       <Dialog open={editTeamDialogOpen} onOpenChange={setEditTeamDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Team Details</DialogTitle>
-            <DialogDescription>Update the name and capacity of your team.</DialogDescription>
+            <DialogDescription>
+              Update the name and capacity of your team.
+            </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-4">
             <div>
@@ -165,12 +174,14 @@ export function TeamDashboard({ teamId }: TeamDashboardProps) {
                 placeholder="Team Name"
                 value={editTeamName}
                 onChange={(e) => {
-                  setEditTeamName(e.target.value)
-                  setEditTeamNameError("")
+                  setEditTeamName(e.target.value);
+                  setEditTeamNameError("");
                 }}
                 className={editTeamNameError ? "border-red-500" : ""}
               />
-              {editTeamNameError && <p className="text-red-500 text-sm mt-1">{editTeamNameError}</p>}
+              {editTeamNameError && (
+                <p className="text-red-500 text-sm mt-1">{editTeamNameError}</p>
+              )}
             </div>
             <div>
               <Label htmlFor="edit-team-capacity">Capacity (person-days)</Label>
@@ -181,16 +192,25 @@ export function TeamDashboard({ teamId }: TeamDashboardProps) {
                 value={editTeamCapacity}
                 min="0"
                 onChange={(e) => {
-                  setEditTeamCapacity(e.target.value === "" ? "" : Number(e.target.value))
-                  setEditTeamCapacityError("")
+                  setEditTeamCapacity(
+                    e.target.value === "" ? "" : Number(e.target.value),
+                  );
+                  setEditTeamCapacityError("");
                 }}
                 className={editTeamCapacityError ? "border-red-500" : ""}
               />
-              {editTeamCapacityError && <p className="text-red-500 text-sm mt-1">{editTeamCapacityError}</p>}
+              {editTeamCapacityError && (
+                <p className="text-red-500 text-sm mt-1">
+                  {editTeamCapacityError}
+                </p>
+              )}
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditTeamDialogOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setEditTeamDialogOpen(false)}
+            >
               Cancel
             </Button>
             <Button onClick={handleEditTeam}>Save Changes</Button>
@@ -199,13 +219,19 @@ export function TeamDashboard({ teamId }: TeamDashboardProps) {
       </Dialog>
 
       {/* Delete Team Alert Dialog */}
-      <AlertDialog open={deleteTeamDialogOpen} onOpenChange={setDeleteTeamDialogOpen}>
+      <AlertDialog
+        open={deleteTeamDialogOpen}
+        onOpenChange={setDeleteTeamDialogOpen}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure you want to delete this team?</AlertDialogTitle>
+            <AlertDialogTitle>
+              Are you sure you want to delete this team?
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. Deleting "{team?.name}" will remove all its projects and associated data.
-              Linked copies of its projects in other teams will become standalone projects.
+              This action cannot be undone. Deleting "{team?.name}" will remove
+              all its projects and associated data. Linked copies of its
+              projects in other teams will become standalone projects.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -220,5 +246,5 @@ export function TeamDashboard({ teamId }: TeamDashboardProps) {
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  )
+  );
 }

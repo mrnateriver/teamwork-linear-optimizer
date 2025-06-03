@@ -1,23 +1,7 @@
 "use client";
 
-import { DependencyDrawer } from "@/components/dependency-drawer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { Separator } from "@/components/ui/separator";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { useAppStore } from "@/lib/store";
-import type { Project } from "@/lib/types";
-import { Check, ChevronsUpDown, Circle, Download, Network } from "lucide-react"; // Added ChevronsUpDown, Check
-import { useMemo, useState } from "react";
-import { useShallow } from "zustand/react/shallow";
 import {
   Command,
   CommandEmpty,
@@ -31,7 +15,22 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Progress } from "@/components/ui/progress";
+import { Separator } from "@/components/ui/separator";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { useAppStore } from "@/lib/store";
+import type { Project } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { Check, ChevronsUpDown, Circle, Download, Network } from "lucide-react"; // Added ChevronsUpDown, Check
+import { useMemo, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 
 interface FilterOption {
   value: string;
@@ -157,175 +156,250 @@ export function GlobalView() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h2 className="text-3xl font-bold mb-6">Global Prioritization</h2>
+      <h2 className="text-3xl font-bold mb-6">Global Prioritization</h2>
 
-        <div className="flex items-center gap-4 mb-6">
-          <label
-            htmlFor="team-filter-combobox"
-            className="text-sm font-medium shrink-0"
-          >
-            Filter by Team:
-          </label>
-          <Popover
-            open={filterComboboxOpen}
-            onOpenChange={setFilterComboboxOpen}
-          >
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                role="combobox"
-                aria-expanded={filterComboboxOpen}
-                className="w-[200px] justify-between"
-                id="team-filter-combobox"
-              >
-                <span className="truncate">{selectedFilterDisplayLabel}</span>
-                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-[200px] p-0">
-              <Command key={filterCommandKey}>
-                {" "}
-                {/* Key for re-initialization */}
-                <CommandInput placeholder="Search team..." />
-                <CommandList>
-                  <CommandEmpty>No team found.</CommandEmpty>
-                  <CommandGroup>
-                    {teamFilterOptions.map((option) => (
-                      <CommandItem
-                        key={option.value}
-                        value={option.value} // Actual value for onSelect
-                        keywords={option.keywords} // Keywords for searching
-                        onSelect={(currentValue) => {
-                          setSelectedTeamFilter(currentValue);
-                          setFilterComboboxOpen(false);
-                        }}
-                      >
-                        <Check
-                          className={cn(
-                            "mr-2 h-4 w-4",
-                            selectedTeamFilter === option.value
-                              ? "opacity-100"
-                              : "opacity-0",
-                          )}
-                        />
-                        {option.label}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
-        </div>
+      <div className="flex items-center gap-4 mb-6">
+        <label
+          htmlFor="team-filter-combobox"
+          className="text-sm font-medium shrink-0"
+        >
+          Filter by Team:
+        </label>
+        <Popover open={filterComboboxOpen} onOpenChange={setFilterComboboxOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              role="combobox"
+              aria-expanded={filterComboboxOpen}
+              className="w-[200px] justify-between"
+              id="team-filter-combobox"
+            >
+              <span className="truncate">{selectedFilterDisplayLabel}</span>
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[200px] p-0">
+            <Command key={filterCommandKey}>
+              {" "}
+              {/* Key for re-initialization */}
+              <CommandInput placeholder="Search team..." />
+              <CommandList>
+                <CommandEmpty>No team found.</CommandEmpty>
+                <CommandGroup>
+                  {teamFilterOptions.map((option) => (
+                    <CommandItem
+                      key={option.value}
+                      value={option.value} // Actual value for onSelect
+                      keywords={option.keywords} // Keywords for searching
+                      onSelect={(currentValue) => {
+                        setSelectedTeamFilter(currentValue);
+                        setFilterComboboxOpen(false);
+                      }}
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          selectedTeamFilter === option.value
+                            ? "opacity-100"
+                            : "opacity-0",
+                        )}
+                      />
+                      {option.label}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
+      </div>
 
-        <div className="space-y-8">
-          <div>
-            <div className="flex items-center gap-4 mb-4">
-              <h3 className="text-xl font-semibold">Team Summary</h3>
-              <div className="flex items-center gap-2 flex-1 max-w-md">
-                <span className="text-sm text-muted-foreground whitespace-nowrap">
-                  Overall Utilization:
-                </span>
-                <Progress value={overallUtilization} className="flex-1" />
-                <span className="text-sm font-medium min-w-[3rem]">
-                  {overallUtilization.toFixed(0)}%
-                </span>
-              </div>
-            </div>
-
-            <div className="border rounded-md">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Team</TableHead>
-                    <TableHead>Capacity</TableHead>
-                    <TableHead>Allocated</TableHead>
-                    <TableHead>Remaining</TableHead>
-                    <TableHead>Value</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {displayTeams.length === 0 && selectedTeamFilter === "all" ? (
-                    <TableRow>
-                      <TableCell
-                        colSpan={5}
-                        className="text-center py-6 text-muted-foreground"
-                      >
-                        No teams created yet.
-                      </TableCell>
-                    </TableRow>
-                  ) : displayTeams.length === 0 &&
-                    selectedTeamFilter !== "all" ? (
-                    <TableRow>
-                      <TableCell
-                        colSpan={5}
-                        className="text-center py-6 text-muted-foreground"
-                      >
-                        Team not found or has no data.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    displayTeams.map((team) => {
-                      const summary = teamSummaries[team.id] || {
-                        allocated: 0,
-                        value: 0,
-                      };
-                      const remaining = team.capacity - summary.allocated;
-                      const utilizationColor = getUtilizationColor(
-                        summary.allocated,
-                        team.capacity,
-                      );
-
-                      return (
-                        <TableRow key={team.id}>
-                          <TableCell className="font-medium">
-                            <div className="flex items-center gap-2">
-                              <Circle
-                                className={`h-3 w-3 fill-current ${utilizationColor}`}
-                              />
-                              {team.name}
-                            </div>
-                          </TableCell>
-                          <TableCell>{team.capacity}</TableCell>
-                          <TableCell>{summary.allocated}</TableCell>
-                          <TableCell>{remaining}</TableCell>
-                          <TableCell>{summary.value}</TableCell>
-                        </TableRow>
-                      );
-                    })
-                  )}
-                </TableBody>
-              </Table>
+      <div className="space-y-8">
+        <div>
+          <div className="flex items-center gap-4 mb-4">
+            <h3 className="text-xl font-semibold">Team Summary</h3>
+            <div className="flex items-center gap-2 flex-1 max-w-md">
+              <span className="text-sm text-muted-foreground whitespace-nowrap">
+                Overall Utilization:
+              </span>
+              <Progress value={overallUtilization} className="flex-1" />
+              <span className="text-sm font-medium min-w-[3rem]">
+                {overallUtilization.toFixed(0)}%
+              </span>
             </div>
           </div>
 
-          <div>
-            <h3 className="text-xl font-semibold mb-4">Prioritized Projects</h3>
-            <div className="border rounded-md">
-              <Table>
-                <TableHeader>
+          <div className="border rounded-md">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Team</TableHead>
+                  <TableHead>Capacity</TableHead>
+                  <TableHead>Allocated</TableHead>
+                  <TableHead>Remaining</TableHead>
+                  <TableHead>Value</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {displayTeams.length === 0 && selectedTeamFilter === "all" ? (
                   <TableRow>
-                    <TableHead>Project</TableHead>
-                    <TableHead>Team</TableHead>
-                    <TableHead>Effort</TableHead>
-                    <TableHead>Value</TableHead>
-                    <TableHead>Actions</TableHead>
+                    <TableCell
+                      colSpan={5}
+                      className="text-center py-6 text-muted-foreground"
+                    >
+                      No teams created yet.
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {selectedProjects.length === 0 ? (
+                ) : displayTeams.length === 0 &&
+                  selectedTeamFilter !== "all" ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={5}
+                      className="text-center py-6 text-muted-foreground"
+                    >
+                      Team not found or has no data.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  displayTeams.map((team) => {
+                    const summary = teamSummaries[team.id] || {
+                      allocated: 0,
+                      value: 0,
+                    };
+                    const remaining = team.capacity - summary.allocated;
+                    const utilizationColor = getUtilizationColor(
+                      summary.allocated,
+                      team.capacity,
+                    );
+
+                    return (
+                      <TableRow key={team.id}>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            <Circle
+                              className={`h-3 w-3 fill-current ${utilizationColor}`}
+                            />
+                            {team.name}
+                          </div>
+                        </TableCell>
+                        <TableCell>{team.capacity}</TableCell>
+                        <TableCell>{summary.allocated}</TableCell>
+                        <TableCell>{remaining}</TableCell>
+                        <TableCell>{summary.value}</TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+
+        <div>
+          <h3 className="text-xl font-semibold mb-4">Prioritized Projects</h3>
+          <div className="border rounded-md">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Project</TableHead>
+                  <TableHead>Team</TableHead>
+                  <TableHead>Effort</TableHead>
+                  <TableHead>Value</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {selectedProjects.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={5}
+                      className="text-center py-6 text-muted-foreground"
+                    >
+                      No projects selected. Add projects and set team
+                      capacities, or adjust filters.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  selectedProjects.map((project) => {
+                    const team = storeTeams.find(
+                      (t) => t.id === project.teamId,
+                    );
+                    const canManageDependencies =
+                      project.effort !== null && project.value !== null;
+                    return (
+                      <TableRow key={project.id}>
+                        <TableCell className="font-medium">
+                          {project.title}
+                        </TableCell>
+                        <TableCell>{team?.name || "Unknown"}</TableCell>
+                        <TableCell>
+                          {project.effort !== null ? project.effort : "--"}
+                        </TableCell>
+                        <TableCell>
+                          {project.value !== null ? project.value : "--"}
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleViewDependencies(project)}
+                            disabled={!canManageDependencies}
+                          >
+                            <Network className="h-4 w-4" />
+                            <span className="sr-only">View dependencies</span>
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          {selectedProjects.length > 0 && (
+            <div className="mt-4 flex justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={exportToCSV}
+                className="flex items-center gap-2"
+              >
+                <Download className="h-4 w-4" />
+                Export to CSV
+              </Button>
+            </div>
+          )}
+
+          {selectedProjects.length > 0 && unselectedProjects.length > 0 && (
+            <div className="relative my-8">
+              <Separator />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <Badge variant="outline" className="bg-background px-2">
+                  Capacity Limit Reached
+                </Badge>
+              </div>
+            </div>
+          )}
+
+          {unselectedProjects.length > 0 && (
+            <>
+              <h3 className="text-xl font-semibold mt-8 mb-4">
+                Postponed Projects
+              </h3>
+              <div className="border rounded-md">
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell
-                        colSpan={5}
-                        className="text-center py-6 text-muted-foreground"
-                      >
-                        No projects selected. Add projects and set team
-                        capacities, or adjust filters.
-                      </TableCell>
+                      <TableHead>Project</TableHead>
+                      <TableHead>Team</TableHead>
+                      <TableHead>Effort</TableHead>
+                      <TableHead>Value</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
-                  ) : (
-                    selectedProjects.map((project) => {
+                  </TableHeader>
+                  <TableBody className="text-muted-foreground">
+                    {unselectedProjects.map((project) => {
                       const team = storeTeams.find(
                         (t) => t.id === project.teamId,
                       );
@@ -337,12 +411,8 @@ export function GlobalView() {
                             {project.title}
                           </TableCell>
                           <TableCell>{team?.name || "Unknown"}</TableCell>
-                          <TableCell>
-                            {project.effort !== null ? project.effort : "--"}
-                          </TableCell>
-                          <TableCell>
-                            {project.value !== null ? project.value : "--"}
-                          </TableCell>
+                          <TableCell>{project.effort ?? "--"}</TableCell>
+                          <TableCell>{project.value ?? "--"}</TableCell>
                           <TableCell>
                             <Button
                               variant="ghost"
@@ -356,93 +426,14 @@ export function GlobalView() {
                           </TableCell>
                         </TableRow>
                       );
-                    })
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-
-            {selectedProjects.length > 0 && (
-              <div className="mt-4 flex justify-end">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={exportToCSV}
-                  className="flex items-center gap-2"
-                >
-                  <Download className="h-4 w-4" />
-                  Export to CSV
-                </Button>
+                    })}
+                  </TableBody>
+                </Table>
               </div>
-            )}
-
-            {selectedProjects.length > 0 && unselectedProjects.length > 0 && (
-              <div className="relative my-8">
-                <Separator />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <Badge variant="outline" className="bg-background px-2">
-                    Capacity Limit Reached
-                  </Badge>
-                </div>
-              </div>
-            )}
-
-            {unselectedProjects.length > 0 && (
-              <>
-                <h3 className="text-xl font-semibold mt-8 mb-4">
-                  Postponed Projects
-                </h3>
-                <div className="border rounded-md">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Project</TableHead>
-                        <TableHead>Team</TableHead>
-                        <TableHead>Effort</TableHead>
-                        <TableHead>Value</TableHead>
-                        <TableHead>Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody className="text-muted-foreground">
-                      {unselectedProjects.map((project) => {
-                        const team = storeTeams.find(
-                          (t) => t.id === project.teamId,
-                        );
-                        const canManageDependencies =
-                          project.effort !== null && project.value !== null;
-                        return (
-                          <TableRow key={project.id}>
-                            <TableCell className="font-medium">
-                              {project.title}
-                            </TableCell>
-                            <TableCell>{team?.name || "Unknown"}</TableCell>
-                            <TableCell>{project.effort ?? "--"}</TableCell>
-                            <TableCell>{project.value ?? "--"}</TableCell>
-                            <TableCell>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleViewDependencies(project)}
-                                disabled={!canManageDependencies}
-                              >
-                                <Network className="h-4 w-4" />
-                                <span className="sr-only">
-                                  View dependencies
-                                </span>
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
-              </>
-            )}
-          </div>
+            </>
+          )}
         </div>
       </div>
-      <DependencyDrawer />
     </div>
   );
 }
