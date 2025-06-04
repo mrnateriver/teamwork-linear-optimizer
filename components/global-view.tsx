@@ -86,16 +86,21 @@ export function GlobalView() {
     ]);
 
   const overallUtilization = useMemo(() => {
-    const totalCapacity = storeTeams.reduce(
+    const utilizedTeams =
+      selectedTeamFilter === "all"
+        ? storeTeams
+        : storeTeams.filter((team) => team.id === selectedTeamFilter);
+
+    const totalCapacity = utilizedTeams.reduce(
       (sum, team) => sum + team.capacity,
       0,
     );
-    const totalAllocated = storeTeams.reduce((sum, team) => {
+    const totalAllocated = utilizedTeams.reduce((sum, team) => {
       const summary = teamSummaries[team.id] || { allocated: 0, value: 0 };
       return sum + summary.allocated;
     }, 0);
     return totalCapacity > 0 ? (totalAllocated / totalCapacity) * 100 : 0;
-  }, [storeTeams, teamSummaries]);
+  }, [storeTeams, selectedTeamFilter, teamSummaries]);
 
   const handleViewDependencies = (project: Project) => {
     selectProject(project.id);
