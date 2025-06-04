@@ -28,9 +28,11 @@ import {
 import { useAppStore } from "@/lib/store";
 import type { Project } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Check, ChevronsUpDown, Circle, Download, Network } from "lucide-react"; // Added ChevronsUpDown, Check
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
+import { Loader2 } from "lucide-react";
 
 interface FilterOption {
   value: string;
@@ -47,6 +49,11 @@ export function GlobalView() {
       unselectedProjects: state.unselectedProjects,
       teamSummaries: state.teamSummaries,
     })),
+  );
+  const doingSorting = useAppStore((state) => state.doingSorting);
+  const activeSortingMode = useAppStore((state) => state.sortingMode);
+  const onActiveSortingModeChange = useAppStore(
+    (state) => state.setProjectsSortingMode,
   );
 
   const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>("all");
@@ -71,7 +78,12 @@ export function GlobalView() {
         unselectedProjects: output.unselectedProjects.filter(filterProjects),
         teamSummaries: output.teamSummaries,
       };
-    }, [selectedTeamFilter]);
+    }, [
+      selectedTeamFilter,
+      output.selectedProjects,
+      output.unselectedProjects,
+      output.teamSummaries,
+    ]);
 
   const overallUtilization = useMemo(() => {
     const totalCapacity = storeTeams.reduce(
@@ -153,6 +165,12 @@ export function GlobalView() {
   const selectedFilterDisplayLabel =
     teamFilterOptions.find((option) => option.value === selectedTeamFilter)
       ?.label || "Filter by team...";
+
+  const totalValue = useMemo(
+    () =>
+      selectedProjects.reduce((acc, project) => acc + (project.value ?? 0), 0),
+    [selectedProjects],
+  );
 
   return (
     <div className="space-y-8">
@@ -283,8 +301,12 @@ export function GlobalView() {
                           </div>
                         </TableCell>
                         <TableCell>{team.capacity}</TableCell>
-                        <TableCell>{summary.allocated}</TableCell>
-                        <TableCell>{remaining}</TableCell>
+                        <TableCell>
+                          {Math.floor(summary.allocated * 100) / 100}
+                        </TableCell>
+                        <TableCell>
+                          {Math.floor(remaining * 100) / 100}
+                        </TableCell>
                         <TableCell>{summary.value}</TableCell>
                       </TableRow>
                     );
@@ -296,7 +318,46 @@ export function GlobalView() {
         </div>
 
         <div>
-          <h3 className="text-xl font-semibold mb-4">Prioritized Projects</h3>
+          <div className="flex items-center justify-start gap-4 mb-4">
+            <h3 className="text-xl font-semibold">Prioritized Projects</h3>
+
+            <Tabs
+              value={activeSortingMode}
+              onValueChange={onActiveSortingModeChange as any}
+            >
+              <TabsList>
+                <TabsTrigger value="naive">Sequential</TabsTrigger>
+                <TabsTrigger value="naive-deps">
+                  Greedy with dependencies
+                </TabsTrigger>
+                <TabsTrigger value="optimized">Optimized</TabsTrigger>
+              </TabsList>
+            </Tabs>
+
+            <span className="text-sm text-gray-500">
+              Total value: {totalValue}
+            </span>
+
+            {doingSorting && (
+              <Loader2 className="h-4 w-4 animate-spin text-primary" />
+            )}
+
+            <div className="flex-1" />
+
+            {selectedProjects.length > 0 && (
+              <div className="flex justify-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={exportToCSV}
+                  className="flex items-center gap-2"
+                >
+                  <Download className="h-4 w-4" />
+                  Export to CSV
+                </Button>
+              </div>
+            )}
+          </div>
           <div className="border rounded-md">
             <Table>
               <TableHeader>
@@ -356,20 +417,6 @@ export function GlobalView() {
               </TableBody>
             </Table>
           </div>
-
-          {selectedProjects.length > 0 && (
-            <div className="mt-4 flex justify-end">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={exportToCSV}
-                className="flex items-center gap-2"
-              >
-                <Download className="h-4 w-4" />
-                Export to CSV
-              </Button>
-            </div>
-          )}
 
           {selectedProjects.length > 0 && unselectedProjects.length > 0 && (
             <div className="relative my-8">

@@ -88,7 +88,7 @@ function topologicalSort(
  * maximizes total value without exceeding capacities. Ensures that a project is only
  * taken if all its dependencies are taken.
  */
-function planProjectsOptimized(
+function planProjectsBruteforce(
   teamCapacities: { [team: string]: number },
   projects: OptimizationProject[],
 ): { sequence: string[]; value: number } {
@@ -173,7 +173,7 @@ function planProjectsNaive(
   }
   for (const proj of projects) {
     for (const dep of proj.dependencies) {
-      adjList[dep].push(proj.id);
+      adjList[dep]?.push(proj.id);
     }
   }
 
@@ -276,9 +276,15 @@ async function planProjectsMIP(
   )(lpModel, {
     msglev: glpk.GLP_MSG_OFF,
     presol: true,
+    mipgap: 0.005,
   });
-  if (result.result.status === glpk.GLP_OPT) {
-    console.debug(`Optimal total value = ${result.result.z}`);
+  if (
+    result.result.status === glpk.GLP_OPT ||
+    result.result.status === glpk.GLP_FEAS
+  ) {
+    console.debug(
+      `${result.result.status === glpk.GLP_OPT ? "Optimal" : "Feasible"} total value = ${result.result.z}`,
+    );
 
     const sequence = Array.from(
       new Set(
@@ -303,7 +309,32 @@ async function planProjectsMIP(
   }
 }
 
+function planProjectsSequential(
+  teamCapacities: { [team: string]: number },
+  projects: OptimizationProject[],
+): { sequence: string[]; value: number } {
+  const sortedProjects = projects.slice().sort((a, b) => b.value - a.value);
+
+  const remainingCap: { [team: string]: number } = { ...teamCapacities };
+  const sequence: OptimizationProject[] = [];
+
+  let project: OptimizationProject | undefined;
+  while ((project = sortedProjects.shift())) {
+    const { team, effort } = project;
+    if (remainingCap[team] >= effort) {
+      remainingCap[team] -= effort;
+      sequence.push(project);
+    }
+  }
+
+  return {
+    sequence: sequence.map((p) => p.id),
+    value: sequence.reduce((a, b) => a + b.value, 0),
+  };
+}
+
 export async function prioritizeProjects(
+  mode: "naive" | "naive-deps" | "optimized",
   inputProjects: Project[],
   inputTeams: Team[],
   dependencies: { sourceId: string; targetId: string }[] = [], // Default to empty array
@@ -377,7 +408,20 @@ export async function prioritizeProjects(
   );
 
   // Run the optimization algorithm
-  const result = await planProjectsMIP(teamCapacities, optimizationProjects);
+  let result: ReturnType<typeof planProjectsNaive>;
+  switch (mode) {
+    case "naive":
+      result = planProjectsSequential(teamCapacities, optimizationProjects);
+      break;
+    case "naive-deps":
+      result = planProjectsNaive(teamCapacities, optimizationProjects);
+      break;
+    case "optimized":
+      result = await planProjectsMIP(teamCapacities, optimizationProjects);
+      break;
+    default:
+      throw new Error(`Unknown mode: ${mode}`);
+  }
 
   // Transform results back to the expected format
   const selectedProjectIds = new Set(result.sequence);

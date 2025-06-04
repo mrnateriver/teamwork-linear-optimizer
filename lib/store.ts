@@ -18,6 +18,8 @@ interface AppState {
   dependencies: Dependency[];
 
   // Prioritization results
+  doingSorting: boolean;
+  sortingMode: "naive" | "naive-deps" | "optimized";
   selectedProjects: Project[];
   unselectedProjects: Project[];
   teamSummaries: Record<string, TeamSummary>;
@@ -32,6 +34,7 @@ interface AppState {
   initializeStore: () => void;
   importData: (data: ImportedJsonFile) => void;
   prioritizeProjects: () => Promise<void>;
+  setProjectsSortingMode: (mode: "naive" | "naive-deps" | "optimized") => void;
 
   // Team actions
   addTeam: (name: string, capacity?: number) => string; // Returns new team ID
@@ -59,9 +62,6 @@ interface AppState {
   getProjectDependencies: (projectId: string) => string[];
   getProjectDependents: (projectId: string) => string[];
   getDependencies: () => Dependency[];
-
-  // View actions
-  setShowGlobalView: (show: boolean) => void; // May be deprecated
 }
 
 export const useAppStore = create<AppState>()(
@@ -74,6 +74,8 @@ export const useAppStore = create<AppState>()(
       selectedProjectId: null,
       showGlobalView: false, // Default, routing will override
       initialized: false,
+      doingSorting: false,
+      sortingMode: "optimized",
       selectedProjects: [],
       unselectedProjects: [],
       teamSummaries: {},
@@ -107,13 +109,27 @@ export const useAppStore = create<AppState>()(
       },
 
       prioritizeProjects: async () => {
-        const { projects, teams, dependencies } = get();
-        const prioritizedProjects = await prioritizeProjects(
-          Object.values(projects),
-          teams,
-          dependencies,
-        );
-        set({ ...prioritizedProjects });
+        const { projects, teams, dependencies, sortingMode } = get();
+        set({ doingSorting: true });
+        setTimeout(async () => {
+          try {
+            const prioritizedProjects = await prioritizeProjects(
+              sortingMode,
+              Object.values(projects),
+              teams,
+              dependencies,
+            );
+
+            set({ ...prioritizedProjects });
+          } finally {
+            set({ doingSorting: false });
+          }
+        }, 1000);
+      },
+
+      setProjectsSortingMode: (mode) => {
+        set({ sortingMode: mode });
+        void get().prioritizeProjects();
       },
 
       addTeam: (name, capacity = 0) => {
@@ -401,11 +417,6 @@ export const useAppStore = create<AppState>()(
 
       getDependencies: () => {
         return get().dependencies;
-      },
-
-      setShowGlobalView: (show) => {
-        // This might be used for other UI purposes or deprecated
-        set({ showGlobalView: show });
       },
     }),
     {

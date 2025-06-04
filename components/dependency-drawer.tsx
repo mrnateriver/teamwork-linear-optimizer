@@ -408,12 +408,7 @@ export function DependencyDrawer() {
                               aria-disabled={linkedCopyExistsInTargetTeam} // For accessibility
                             >
                               <ArrowRight className="h-4 w-4" />
-                              Link to{" "}
-                              {
-                                teams.find(
-                                  (t) => t.id === selectedTeamIdForLink,
-                                )?.name
-                              }
+                              Add team as dependency
                             </Button>
                           </span>
                         </TooltipTrigger>
@@ -448,7 +443,7 @@ export function DependencyDrawer() {
                         className="flex items-center gap-1"
                       >
                         <Link className="h-4 w-4" />
-                        Link to existing project
+                        Link to existing team project
                       </Button>
                       <Button
                         variant="outline"
